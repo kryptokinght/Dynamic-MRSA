@@ -1,7 +1,3 @@
-# A Python program for Dijkstra's shortest
-# path algorithm for adjacency
-# list representation of graph
-
 from collections import defaultdict
 import sys
 
@@ -111,42 +107,31 @@ class Heap():
         return False
 
 
-def printArr(dist, n):
-    print("Vertex\tDistance from source")
-    for i in range(n):
-        print("%d\t\t%d" % (i, dist[i]))
-
-
 class Graph():
 
     def __init__(self, V):
         self.V = V
         self.graph = defaultdict(list)
+        self._initializeGraph('network_graph.txt')
+        self.currSrc = 0
+        self.shortestDist = []  # shortest distance to all the vertices from the current src
 
-    # Adds an edge to an undirected graph
+    def _initializeGraph(self, file):
+        '''initializes the network graph from txt file'''
+        f = open("network_graph.txt", "r")
+        contents = f.readlines()
+        for line in contents:
+            values = [int(x) for x in line[:-1].split(" ")]
+            self.addEdge(values[0], values[1], values[2])
+
     def addEdge(self, src, dest, weight):
+        ''' Adds an edge to an undirected graph'''
+        self.graph[src].insert(0, [dest, weight])
+        self.graph[dest].insert(0, [src, weight])  # Since graph is undirected
 
-        # Add an edge from src to dest. A new node
-        # is added to the adjacency list of src. The
-        # node is added at the beginning. The first
-        # element of the node has the destination
-        # and the second elements has the weight
-        newNode = [dest, weight]
-        self.graph[src].insert(0, newNode)
-
-        # Since graph is undirected, add an edge
-        # from dest to src also
-        newNode = [src, weight]
-        self.graph[dest].insert(0, newNode)
-
-    # The main function that calulates distances
-    # of shortest paths from src to all vertices.
-    # It is a O(ELogV) function
     def dijkstra(self, src):
-
-        V = self.V  # Get the number of vertices in graph
-        dist = []  # dist values used to pick minimum
-        # weight edge in cut
+        V = self.V  # number of vertices in graph
+        dist = []  # dist values used to pick minimum weight edge in cut
 
         # minHeap represents set E
         minHeap = Heap()
@@ -192,26 +177,32 @@ class Graph():
                     # update distance value
                     # in min heap also
                     minHeap.decreaseKey(v, dist[v])
+        # printArr(dist, V)
+        return dist
 
-        printArr(dist, V)
+    def getShortestPath(self, src, dest):
+        '''returns the shortest path as a list of vertices from src to dest'''
+        if not self.currSrc == src:
+            self.currSrc = src
+            self.shortestDist = self.dijkstra(src)
+        path = []
+        path.append(dest)
+        dist = self.shortestDist
+        graph = self.graph
+        curr = dest
+        while not curr == src:
+
+            for child in graph[curr]:
+                #print("child for {}".format(curr), child)
+                if dist[curr] - child[1] == dist[child[0]]:
+                    curr = child[0]
+                    path.insert(0, curr)
+        return path
 
 
 # Driver program to test the above functions
 graph = Graph(9)
-graph.addEdge(0, 1, 4)
-graph.addEdge(0, 7, 8)
-graph.addEdge(1, 2, 8)
-graph.addEdge(1, 7, 11)
-graph.addEdge(2, 3, 7)
-graph.addEdge(2, 8, 2)
-graph.addEdge(2, 5, 4)
-graph.addEdge(3, 4, 9)
-graph.addEdge(3, 5, 14)
-graph.addEdge(4, 5, 10)
-graph.addEdge(5, 6, 2)
-graph.addEdge(6, 7, 1)
-graph.addEdge(6, 8, 6)
-graph.addEdge(7, 8, 7)
-graph.dijkstra(0)
+#graph.shortestDist = graph.dijkstra(0)
 
-# This code is contributed by Divyanshu Mehta
+path = graph.getShortestPath(8, 4)
+print(path)
