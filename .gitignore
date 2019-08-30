@@ -1,9 +1,4 @@
-*.c
-.pylintrc
-*.pdf
-*.cs
-*.pptx
 sample.py 
 
-#folder containing images
-final yr project 
+#help materials
+study_docs 
