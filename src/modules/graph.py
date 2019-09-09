@@ -35,5 +35,8 @@ class Graph():
 
     def getShortestPath(self, src, dest):
         '''returns the shortest path as a list of vertices from src to dest'''
-        ans = nx.dijkstra_path(self.nx_graph, src, dest, "weight")
-        return ans
+        paths = []
+        for d in dest:
+            path = nx.dijkstra_path(self.nx_graph, src, d, "weight")
+            paths.append(path)
+        return paths
