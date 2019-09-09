@@ -84,12 +84,12 @@ class Heap():
 
         # Travel up while the complete tree is
         # not hepified. This is a O(Logn) loop
-        while i > 0 and self.array[i][1] < self.array[(i - 1) / 2][1]:
+        while i > 0 and self.array[i][1] < self.array[int((i - 1) / 2)][1]:
 
             # Swap this node with its parent
             self.pos[self.array[i][0]] = (i-1)/2
-            self.pos[self.array[(i-1)/2][0]] = i
-            self.swapMinHeapNode(i, (i - 1)/2)
+            self.pos[self.array[int((i-1)/2)][0]] = i
+            self.swapMinHeapNode(i, int((i - 1)/2))
 
             # move to parent index
             i = (i - 1) / 2

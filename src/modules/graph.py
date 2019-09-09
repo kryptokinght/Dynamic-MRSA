@@ -1,29 +1,46 @@
 """
 Graph to find dijsktra's shortest path and light tree
 """
-
 import sys
+import math
+import random
 from collections import defaultdict
-from heap import Heap
+import networkx as nx
+import matplotlib.pyplot as plt
+from modules.heap import Heap
 
 
 class Graph():
     """ Graph to find dijsktra's shortest path and light tree"""
 
-    def __init__(self, num_of_vertices, inputFile):
+    def __init__(self, num_of_vertices):
         self.V = num_of_vertices
         self.graph = defaultdict(list)
-        self._initialize_graph(inputFile)
+        self.nx_graph = self._initialize_graph()
         self.curr_src = 0
         self.shortest_dist = []  # shortest distance to all the vertices from the current src
 
-    def _initialize_graph(self, file):
-        '''initializes the network graph from txt file'''
-        f = open(file, "r")
-        contents = f.readlines()
-        for line in contents:
-            values = [int(x) for x in line[:-1].split(" ")]
-            self.addEdge(values[0], values[1], values[2])
+    def _initialize_graph(self):
+        '''Creates a graph using networkx and initializes self.graph'''
+        G = nx.erdos_renyi_graph(self.V, 0.5)
+        for (u, v) in G.edges():
+            wt = random.randint(1, 10)
+            G.edges[u, v]['weight'] = wt
+            self.addEdge(u, v, wt)
+
+        return G
+
+    def show_graph(self):
+        '''Displays the graph using mathplotlib.pyplot'''
+        G = self.nx_graph
+        pos = nx.spring_layout(G)
+        nx.draw(G, pos)
+        labels = nx.get_edge_attributes(G, 'weight')
+        nx.draw_networkx_edge_labels(
+            G, pos, edge_labels=labels, alpha=0.5, edge_color='b')
+        # labels
+        nx.draw_networkx_labels(G, pos, font_size=10, font_family='sans-serif')
+        plt.show()
 
     def addEdge(self, src, dest, weight):
         ''' Adds an edge to an undirected graph'''
@@ -43,7 +60,7 @@ class Graph():
         # Initialize min heap with all vertices.
         # dist value of all vertices
         for v in range(V):
-            dist.append(sys.maxint)
+            dist.append(math.inf)
             minHeap.array.append(minHeap.newMinHeapNode(v, dist[v]))
             minHeap.pos.append(v)
 
@@ -74,7 +91,7 @@ class Graph():
                 # If shortest distance to v is not finalized
                 # yet, and distance to v through u is less
                 # than its previously calculated distance
-                if minHeap.isInMinHeap(v) and dist[u] != sys.maxint and \
+                if minHeap.isInMinHeap(v) and dist[u] != math.inf and \
                         pCrawl[1] + dist[u] < dist[v]:
                     dist[v] = pCrawl[1] + dist[u]
 
@@ -86,7 +103,10 @@ class Graph():
 
     def getShortestPath(self, src, dest):
         '''returns the shortest path as a list of vertices from src to dest'''
-        if not self.curr_src == src:
+        ans = nx.dijkstra_path(self.nx_graph, src, dest, "weight")
+        print(ans)
+        return ans
+        """ if not self.curr_src == src:
             self.curr_src = src
             self.shortest_dist = self.dijkstra(src)
         path = []
@@ -101,4 +121,4 @@ class Graph():
                 if dist[curr] - child[1] == dist[child[0]]:
                     curr = child[0]
                     path.insert(0, curr)
-        return path
+        return path """
