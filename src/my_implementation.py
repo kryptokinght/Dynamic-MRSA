@@ -33,19 +33,25 @@ def printTree(root):
         printTree(child)
 
 
-def main():
-    """Driver program to test the above functions"""
-    graph = Graph(20)
-    paths = graph.getShortestPath(1, [3, 6, 8, 15, 19])
-    print(paths)
-
+def createLightTree(paths):
     root = Tree()
     root.data = 1
     for path in paths:
         addPathToTree(path[1:], root)
 
-    printTree(root)
-    graph.show_graph()
+
+def main():
+    """Driver program to test the above functions"""
+    graph = Graph(14, "network_graph.txt")
+    paths = graph.getShortestPath(1, [2, 5, 8, 12, 13])
+    # print(paths)
+    links = graph.getAllEdges()
+    linkIndexMap = {str(links[i][0])+":"+str(links[i][1]): i for i in range(len(links))}
+    slots = 320
+    spectrum_matrix = [[0 for j in range(slots)] for i in range(len(links))]
+    # print(spectrum_matrix)
+    """ root = createLightTree(paths)
+    printTree(root) """
 
 
 if __name__ == '__main__':
