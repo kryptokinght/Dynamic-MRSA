@@ -4,12 +4,18 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/types.h>
+#include <semaphore.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <pthread.h>
+
 using namespace std;
 
 //VARIABLES
 #define T 4 //not used
 #define noOfRequests 10
-#define totalRequests 100
+#define totalRequests 10
 #define maxSlotsPerReq 4
 #define maxBtPerReq 5
 #define NO_OF_DEST 3
@@ -37,13 +43,24 @@ int (*requestsInfo)[15]; /* stores information about a request
                           7 - no of requests 
                         */
 
+int id_shm;
+sem_t *id_semaphore;
+
+int mat_shm;
+sem_t *matrix_semaphore;
+
 struct slotType // slot matrix
 {
     int slots[SLOTS];
     //bool slots[SLOTS];
     int status;
 };
+
+
 slotType (*slotMatrix)[VERTICES]; //slotMatrix is a pointer to an array of VERTICES
+
+slotType slotMatrixStates[totalRequests][VERTICES][VERTICES];
+int reqSatisfied[totalRequests];
 
 int generateRequest(int *bt, int *src, int requestId)
 {
@@ -73,7 +90,7 @@ set<pair<int, int>> getLightTree(int parent[], int src, int destinations[])
 {
 
     set<pair<int, int>> s;
-    cout << endl;
+    // cout << endl;
     for (int i = 0; i < NO_OF_DEST; i++)
     {
         int dest = destinations[i];
@@ -98,7 +115,7 @@ set<pair<int, int>> getLightTree(int parent[], int src, int destinations[])
             // cout << "(" << par << "-" << dest << ")"
             //      << " ";
         }
-        cout << endl;
+        // cout << endl;
     }
     return s;
 }
@@ -412,10 +429,7 @@ pair<int, int> firstFitAllocation(struct slotType (&slotMatrixClone)[VERTICES][V
     }
 }
 
-int  findBestPolicy(set<pair<int, int>> lightTree, set<pair<int, int>> lightTreeBackup, int requiredSlots)
-{
-    //cloning the shared memroy slots
-    slotType slotMatrixClone[VERTICES][VERTICES];
+void cloneSlotMatrix(struct slotType (&slotMatrixClone)[VERTICES][VERTICES]){
     for (int i = 0; i < VERTICES; i++)
     {
         for (int j = 0; j < VERTICES; j++)
@@ -426,6 +440,13 @@ int  findBestPolicy(set<pair<int, int>> lightTree, set<pair<int, int>> lightTree
             }
         }
     }
+}
+
+int  findBestPolicy(set<pair<int, int>> lightTree, set<pair<int, int>> lightTreeBackup, int requiredSlots)
+{
+    //cloning the shared memroy slots
+    slotType slotMatrixClone[VERTICES][VERTICES];
+    cloneSlotMatrix(slotMatrixClone);
 
     pair<int,int> allocationStatusOriginal;
     pair<int,int> allocationStatusBackup;
@@ -700,6 +721,52 @@ int main()
         graph[j][k] = l;
         graph[k][j] = l;
     }
+
+
+//===============================CREATE THE SEMAPHORE FOR PROCESS SYN==============================//
+    
+    const char *shm_name_id="id_shm";
+    const char *shm_name_mat="mat_shm";
+    //===============SEMAPHORE FOR PROTECTING REQ ID VALUE======================//
+    if ((id_shm = shm_open(shm_name_id, O_RDWR | O_CREAT, S_IRWXU))<0) {
+        perror("shm_open");
+        exit(1);
+    }
+
+    if (ftruncate(id_shm, sizeof(sem_t)) < 0 ) {
+        perror("ftruncate");
+        exit(1);
+    }
+
+    if ((id_semaphore = (sem_t *)mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, id_shm, 0)) == MAP_FAILED) {
+        perror("mmap");
+        exit(1);
+    }
+
+    //==============SEMAPHORE FOR PROTECTING SLOT MATRIX========================//
+    if ((mat_shm = shm_open(shm_name_mat, O_RDWR | O_CREAT, S_IRWXU))<0) {
+        perror("shm_open");
+        exit(1);
+    }
+
+    if (ftruncate(mat_shm, sizeof(sem_t)) < 0 ) {
+        perror("ftruncate");
+        exit(1);
+    }
+
+    if (( matrix_semaphore= (sem_t *)mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, mat_shm, 0)) == MAP_FAILED) {
+        perror("mmap");
+        exit(1);
+    }
+
+//============================CREATION OF EMAPHORE FOR PROCESS SYN IS DONE=======================//
+
+//============================INITITIALIZE CREATED SEMAPHORES====================================//
+    sem_init(id_semaphore, 1, 1); 
+    sem_init(matrix_semaphore,1, 1);
+//============================INITITIALIZE CREATED SEMAPHORES====================================//
+
+
     //----- initializes shared memory----------------------
     //attaches slot matrix to shared memory, which is of size [28][28] where 28 is the no of vertices
     int shmid = shmget(IPC_PRIVATE, sizeof(slotType[VERTICES][VERTICES]), 0777 | IPC_CREAT); //size of f[VERTICES][VERTICES]
@@ -735,34 +802,76 @@ int main()
     int noOfBlockedReq = 0, noOfFinishedReq = 0;
     for (int i = 0; i < noOfRequests; i++)
     {
+
         fork();
+        
+        sem_wait(id_semaphore);
+
+        cout<<endl<<"ENTERED ID CRITICAL SECTION"<<endl;
         int id = number[0];
         number[0]++;
-        // if (id == totalRequests) //on the last request, display BP and BBP
-        // {
-        //     sleep(15);
-        //     int noOfBlocked = 0;
-        //     for (int i = 0; i <= id; i++)
-        //     {
-        //         if (requestsInfo[i][NO_OF_DEST + 1] == 2)
-        //             noOfBlocked++;
-        //     }
-        //     float BP = (float)noOfBlocked / totalRequests;
-        //     cout << id << " Blocked requests = " << noOfBlocked << ", BP = " << BP << endl;
-        //     float BBP = (float)simulation_info[3] / (simulation_info[2] + simulation_info[3]);
-        //     cout << id << "   "
-        //          << "BBP = " << BBP << endl;
-        /*
-      ofstream myfile;
-      myfile.open("dataset1.txt", ios_base::app);
-      myfile << VERTICES << "," << EDGES << "," << totalRequests << "," << NO_OF_DEST << "," << SLOTS << "," << BP << "," << BBP << endl;
-      myfile.close();
-      */
+        cout<<"REQUEST ID "<<id<<endl;;
+        cout<<"COMING OUT OF ID CRITICAL SECTION"<<endl<<endl;;
+        sem_post(id_semaphore);
+        
+        if (id == totalRequests) //on the last request, display BP and BBP
+        {
+            sleep(15);
+            int noOfBlocked = 0;
+            for (int i = 0; i <= id; i++)
+            {
+                if (requestsInfo[i][NO_OF_DEST + 1] == 2)
+                    noOfBlocked++;
+            }
+            float BP = (float)noOfBlocked / totalRequests;
+            cout << id << " Blocked requests = " << noOfBlocked << ", BP = " << BP << endl;
+            float BBP = (float)simulation_info[3] / (simulation_info[2] + simulation_info[3]);
+            cout << id << "   "
+                 << "BBP = " << BBP << endl;
+            /*
+            ofstream myfile;
+            myfile.open("dataset1.txt", ios_base::app);
+            myfile << VERTICES << "," << EDGES << "," << totalRequests << "," << NO_OF_DEST << "," << SLOTS << "," << BP << "," << BBP << endl;
+            myfile.close();
+            */
 
-        // }
+            //======================PRINT THE SLOTMATRICES TO FILE==================//
+            ofstream myfile;
+            string filenam = "samples/slot_matrices.txt";
+            myfile.open(filenam, ios_base::out);
+            //myfile << VERTICES << "," << EDGES << "," << totalRequests << "," << NO_OF_DEST << "," << SLOTS << "," << BP << "," << BBP << endl;
+            //printing the slot
+
+            for(int req_id=0; req_id<totalRequests;req_id++){
+                myfile << "Reqq id: " << req_id << " Src: " << requestsInfo[req_id][0] << " Dst: {" << requestsInfo[req_id][1] << "," << requestsInfo[req_id][2] << "," << requestsInfo[req_id][3] << "} slots: " << requestsInfo[req_id][NO_OF_DEST+4] << endl;
+                myfile<< "SLOT MATRIX \n";
+                myfile<< "\t\t";
+                for (int i = 1; i <= SLOTS; i++)
+                    myfile << i << "   ";
+                myfile << endl;
+                for (int i = 0; i < VERTICES; i++)
+                {
+                    for (int j = 0; j < VERTICES; j++)
+                    {
+
+                        myfile << i << "-" << j << ":\t ";
+                        for (int k = 0; k < SLOTS; k++)
+                        {
+                            myfile << slotMatrix[i][j].slots[k] << "   ";
+                        }
+                        myfile << endl;
+                    
+                    }
+                }
+            }
+            myfile.close();
+            //end of slot print
+
+        }
 
         if (id >= totalRequests) //when we have generated 600 requests, terminate calling process
         {
+            // cout<<"id is "<<id<<" last code "<<totalRequests<<endl;
             shmdt(slotMatrix);
             shmctl(shmid, IPC_RMID, NULL);
 
@@ -774,8 +883,15 @@ int main()
 
             shmdt(number);
             shmctl(shmid5, IPC_RMID, NULL);
+
+            shm_unlink(shm_name_id);
+            sem_destroy(id_semaphore);
+
+            shm_unlink(shm_name_mat);
+            sem_destroy(matrix_semaphore);
+
             kill(getpid(), SIGKILL);
-            //exit(-1);
+
         }
 
         // -----when id < totalRequests, Common to every request-----------------------
@@ -811,42 +927,29 @@ int main()
             isSlotsAllocated=0;
         }
         else{
+            sem_wait(matrix_semaphore);
             isSlotsAllocated = allocateSlots(lightTree, lightTreeBackup, noOfSlotsReq + 2, beginIndexOriginal, beginIndexBackup,id);
+            sem_post(matrix_semaphore);
         }
 
 
-
-        if (isSlotsAllocated == 1) // SLOTS successfully allocated for the request
-        {
-            // path(); //print the path
-            ofstream myfile;
-            string filenam = "samples/slot_" + to_string(id) + ".txt";
-            myfile.open(filenam, ios_base::app);
-            //myfile << VERTICES << "," << EDGES << "," << totalRequests << "," << NO_OF_DEST << "," << SLOTS << "," << BP << "," << BBP << endl;
-            myfile << "Reqq id: " << id << " Src: " << src << " Dst: {" << requestsInfo[id][1] << "," << requestsInfo[id][2] << "," << requestsInfo[id][3] << "} slots: " << noOfSlotsReq << endl;
-            //printing the slot
-
-            myfile << "    ";
-            for (int i = 1; i <= SLOTS; i++)
-                myfile << i << " ";
-            myfile << endl;
+            //store the state of slotmatrix in memory<<endl;
+            sem_wait(matrix_semaphore);
             for (int i = 0; i < VERTICES; i++)
             {
                 for (int j = 0; j < VERTICES; j++)
                 {
-                    if (j > i && graph[i][j] != 0)
+                    for (int k = 0; k < SLOTS; k++)
                     {
-                        myfile << i << "-" << j << ": ";
-                        for (int k = 0; k < SLOTS; k++)
-                        {
-                            myfile << slotMatrix[i][j].slots[k] << " ";
-                        }
-                        myfile << endl;
+                        slotMatrixStates[id][i][j].slots[k] = slotMatrix[i][j].slots[k];
                     }
                 }
             }
-            myfile.close();
-            //end of slot print
+            sem_post(matrix_semaphore);
+
+
+        if (isSlotsAllocated == 1) // SLOTS successfully allocated for the request
+        {
 
             requestsInfo[id][NO_OF_DEST + 1] = 1; // 1 means request is active
             requestsInfo[id][NO_OF_DEST + 2] = beginIndexOriginal;
@@ -861,10 +964,20 @@ int main()
 
             // deallocation(slotMatrix,lightTree,beginIndexOriginal,noOfSlotsReq+2);
             // deallocation(slotMatrix,lightTreeBackup,beginIndexBackup,noOfSlotsReq+2);
+
+
+            //===============LOCK WHILE A PROCESS IS DEALLOCATING MATRIX=================//
+            sem_wait(matrix_semaphore);
+
             deallocationMainSlotMatrix(lightTree,beginIndexOriginal,noOfSlotsReq+2);
             deallocationMainSlotMatrix(lightTreeBackup,beginIndexBackup,noOfSlotsReq+2);
-
+            reqSatisfied[id]=1;
             simulation_info[0]++; // simulation_info[0] : no of requests completed
+            cout<<"REQUEST "<<id<<" SATISFIED"<<"\n\n";
+            sem_post(matrix_semaphore);
+            //===============LOCK WHILE A PROCESS IS DEALLOCATING MATRIX=================//
+
+
             int k = rand() % 3;
             sleep(k); // after this request, process sleeps for a random amount of time before spawning another process/request
         }
@@ -872,12 +985,13 @@ int main()
         {
             //requestsInfo[id][4] = 2;            //2 means blocked
             requestsInfo[id][NO_OF_DEST + 1] = 2;
+            requestsInfo[id][NO_OF_DEST + 4] = noOfSlotsReq;
+            reqSatisfied[id] =0;
             simulation_info[3] += noOfSlotsReq; // simulation_info[3] : no of SLOTS blocked
             simulation_info[1]++;               // simulation_info[1] : no of requests blocked
             //requestsInfo[id][7] = id;
             requestsInfo[id][NO_OF_DEST + 4] = id;
-            cout << id << "  "
-                 << "Request Blocked" << endl;
+            cout <<"Request "<<id<<" Blocked\n\n";
             sleep(3); // WHY are we sleeping here after request is getting blocked???
         }
         /*     cout << id << " source: " << requestsInfo[id][0] << " dest: (" << requestsInfo[id][1] << "," << requestsInfo[id][2] << "," << requestsInfo[id][3] << ") status: "
