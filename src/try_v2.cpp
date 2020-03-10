@@ -217,6 +217,32 @@ set<pair<int, int>> secondary_dijkstra(int src, int destinations[], set<pair<int
 }
 
 
+//=============================PRINT UTILITY FUNCTION FOR MAIN SLOT MATRIX===================================//
+
+void printMainSlotMatrix()
+{
+    for (int i = 1; i <= SLOTS; i++)
+        cout << i << "   ";
+    cout << endl;
+    for (int i = 0; i < VERTICES; i++)
+    {
+        for (int j = 0; j < VERTICES; j++)
+        {
+
+            cout << i << "-" << j << ":\t ";
+            for (int k = 0; k < SLOTS; k++)
+            {
+                cout << slotMatrix[i][j].slots[k] << "   ";
+            }
+            cout << endl;
+        }
+    }
+}
+
+//=============================PRINT UTILITY FUNCTION FOR MAIN SLOT MATRIX===================================//
+
+
+
 //=============================DEALLOCATION OF MAIN SLOT MATRIX =============================================//
 void deallocationMainSlotMatrix(set<pair<int, int>> lightTree, int beginIndex, int requiredSlots){
     // deallocation
@@ -662,7 +688,7 @@ int allocateSlots(set<pair<int, int>> lightTree, set<pair<int, int>> lightTreeBa
     int bestPolicy= findBestPolicy(lightTree,lightTreeBackup,requiredSlots);
     
     //blocked request
-    if(bestPolicy=0)
+    if(bestPolicy==0)
         return 0;
     else{
         pair<int,int> allocationStatusOriginal;
@@ -686,6 +712,7 @@ int allocateSlots(set<pair<int, int>> lightTree, set<pair<int, int>> lightTreeBa
             allocationStatusOriginal= firstFitAllocationMainSlotMatrix(lightTree,1,requiredSlots);
             allocationStatusBackup= firstFitAllocationMainSlotMatrix(lightTreeBackup,1,requiredSlots);
         }
+        cout<<"REQ ID IS "<<req_id<<" ALLOCATION STATUS is"<<allocationStatusOriginal.first<<" "<<allocationStatusBackup.first<<endl;
         beginIndexOriginal=allocationStatusOriginal.second;
         beginIndexBackup=allocationStatusBackup.second;
         return 1;
@@ -811,7 +838,8 @@ int main()
         int id = number[0];
         number[0]++;
         cout<<"REQUEST ID "<<id<<endl;;
-        cout<<"COMING OUT OF ID CRITICAL SECTION"<<endl<<endl;;
+        cout<<"COMING OUT OF ID CRITICAL SECTION"<<endl<<endl;
+
         sem_post(id_semaphore);
         
         if (id == totalRequests) //on the last request, display BP and BBP
@@ -857,7 +885,7 @@ int main()
                         myfile << i << "-" << j << ":\t ";
                         for (int k = 0; k < SLOTS; k++)
                         {
-                            myfile << slotMatrix[i][j].slots[k] << "   ";
+                            myfile << slotMatrixStates[req_id][i][j].slots[k] << "   ";
                         }
                         myfile << endl;
                     
@@ -902,8 +930,20 @@ int main()
         int src = 0;
 
         int noOfSlotsReq = generateRequest(&burstTime, &src, id); //burstTime and src is passed by ref, gets updated and send
-        cout << "Reqq id: " << id << " Src: " << src << " Dst: {" << requestsInfo[id][1] << "," << requestsInfo[id][2] << "," << requestsInfo[id][3] << "} slots: " << noOfSlotsReq << endl;
-        int destinations[] = {requestsInfo[id][1], requestsInfo[id][2], requestsInfo[id][3]};
+        
+        //PRINT REQ INFO
+        cout << "Reqq id: " << id << " Src: " << src;
+        cout<< " Dst: {";
+        for(int i=0;i<NO_OF_DEST;i++){
+            cout<< requestsInfo[id][i+1] << ",";
+        }
+        cout << " } Slots Req: " << noOfSlotsReq <<" Burst Time: "<<burstTime <<endl;
+        
+        int destinations[NO_OF_DEST];
+        for(int i=0;i<NO_OF_DEST;i++){
+            destinations[i]=requestsInfo[id][i+1];
+        }
+
         set<pair<int, int>> lightTree = dijkstra(src, destinations);
         set<pair<int, int>> lightTreeBackup = secondary_dijkstra(src, destinations, lightTree);
 
@@ -923,18 +963,29 @@ int main()
         int beginIndexBackup = 0;
         int isSlotsAllocated=0;
         if(lightTree.size()==0 || lightTreeBackup.size()==0){
-            cout<<"LIGHT TREE NOT FOUND !!!!"<<endl;
+
+            if(lightTree.size()==0)
+                cout<<"LIGHT TREE NOT FOUND FOR REQ ID "<<id<<" !!!!"<<endl;
+            if(lightTreeBackup.size()==0)
+                cout<<"BACKUP LIGHT TREE NOT FOUND FOR REQ ID "<<id<<" !!!!"<<endl;
+
             isSlotsAllocated=0;
         }
         else{
             sem_wait(matrix_semaphore);
+
+            cout<<"INSIDE ALLOCATION CRITICAL SECTION OF REQ ID"<<id<<endl;
             isSlotsAllocated = allocateSlots(lightTree, lightTreeBackup, noOfSlotsReq + 2, beginIndexOriginal, beginIndexBackup,id);
+            cout<<"COMING OUT OF ALLOCATION CRITICAL SECTION OF REQ ID"<<id<<endl;
+
             sem_post(matrix_semaphore);
         }
 
 
             //store the state of slotmatrix in memory<<endl;
             sem_wait(matrix_semaphore);
+            
+            cout<<"INSIDE SLOT MATRIX STATE CRITICAL SECTION OF REQ ID "<<id<<endl;
             for (int i = 0; i < VERTICES; i++)
             {
                 for (int j = 0; j < VERTICES; j++)
@@ -945,6 +996,8 @@ int main()
                     }
                 }
             }
+            cout<<"COMING OUT OF SLOT MATRIX STATE CRITICAL SECTION OF REQ ID "<<id<<endl;
+
             sem_post(matrix_semaphore);
 
 
@@ -968,12 +1021,13 @@ int main()
 
             //===============LOCK WHILE A PROCESS IS DEALLOCATING MATRIX=================//
             sem_wait(matrix_semaphore);
-
+            
             deallocationMainSlotMatrix(lightTree,beginIndexOriginal,noOfSlotsReq+2);
             deallocationMainSlotMatrix(lightTreeBackup,beginIndexBackup,noOfSlotsReq+2);
             reqSatisfied[id]=1;
             simulation_info[0]++; // simulation_info[0] : no of requests completed
             cout<<"REQUEST "<<id<<" SATISFIED"<<"\n\n";
+            
             sem_post(matrix_semaphore);
             //===============LOCK WHILE A PROCESS IS DEALLOCATING MATRIX=================//
 
@@ -986,12 +1040,12 @@ int main()
             //requestsInfo[id][4] = 2;            //2 means blocked
             requestsInfo[id][NO_OF_DEST + 1] = 2;
             requestsInfo[id][NO_OF_DEST + 4] = noOfSlotsReq;
+            requestsInfo[id][NO_OF_DEST + 5] = id;
             reqSatisfied[id] =0;
             simulation_info[3] += noOfSlotsReq; // simulation_info[3] : no of SLOTS blocked
             simulation_info[1]++;               // simulation_info[1] : no of requests blocked
             //requestsInfo[id][7] = id;
-            requestsInfo[id][NO_OF_DEST + 4] = id;
-            cout <<"Request "<<id<<" Blocked\n\n";
+            cout <<"REQUEST "<<id<<" BLOCKED\n\n";
             sleep(3); // WHY are we sleeping here after request is getting blocked???
         }
         /*     cout << id << " source: " << requestsInfo[id][0] << " dest: (" << requestsInfo[id][1] << "," << requestsInfo[id][2] << "," << requestsInfo[id][3] << ") status: "
