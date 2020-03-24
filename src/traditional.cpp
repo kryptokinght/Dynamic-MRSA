@@ -729,38 +729,34 @@ int  findBestPolicy(set<pair<int, int>> lightTree, set<pair<int, int>> lightTree
 int allocateSlots(set<pair<int, int>> lightTree, set<pair<int, int>> lightTreeBackup, int requiredSlots, int &beginIndexOriginal, int &beginIndexBackup, int req_id)
 {
 
-    int bestPolicy= findBestPolicy(lightTree,lightTreeBackup,requiredSlots);
-    
-    //blocked request
-    if(bestPolicy==0)
-        return 0;
-    else{
-        pair<int,int> allocationStatusOriginal;
-        pair<int,int> allocationStatusBackup;
 
-        if(bestPolicy==1){
-            // allocationStatusOriginal= firstFitAllocation(slotMatrix,lightTree,0,requiredSlots);
-            // allocationStatusBackup= firstFitAllocation(slotMatrix,lightTreeBackup,1,requiredSlots);
-            allocationStatusOriginal= firstFitAllocationMainSlotMatrix(lightTree,0,requiredSlots);
-            allocationStatusBackup= firstFitAllocationMainSlotMatrix(lightTreeBackup,1,requiredSlots);
-        }
-        else if(bestPolicy==2){
-            // allocationStatusOriginal= firstFitAllocation(slotMatrix,lightTree,0,requiredSlots);
-            // allocationStatusBackup= firstFitAllocation(slotMatrix,lightTreeBackup,0,requiredSlots);
-            allocationStatusOriginal= firstFitAllocationMainSlotMatrix(lightTree,0,requiredSlots);
-            allocationStatusBackup= firstFitAllocationMainSlotMatrix(lightTreeBackup,0,requiredSlots);
-        }
-        else if(bestPolicy==3){
-            // allocationStatusOriginal= firstFitAllocation(slotMatrix,lightTree,1,requiredSlots);
-            // allocationStatusBackup= firstFitAllocation(slotMatrix,lightTreeBackup,1,requiredSlots);
-            allocationStatusOriginal= firstFitAllocationMainSlotMatrix(lightTree,1,requiredSlots);
-            allocationStatusBackup= firstFitAllocationMainSlotMatrix(lightTreeBackup,1,requiredSlots);
-        }
-        cout<<"Req Id is "<<req_id<<" Policy Used is "<<bestPolicy<<" Allocation Status is "<<allocationStatusOriginal.first<<" "<<allocationStatusBackup.first<<endl;
-        beginIndexOriginal=allocationStatusOriginal.second;
-        beginIndexBackup=allocationStatusBackup.second;
-        return 1;
+    pair<int,int> allocationStatusOriginal;
+    pair<int,int> allocationStatusBackup;
+
+    allocationStatusOriginal= firstFitAllocationMainSlotMatrix(lightTree,0,requiredSlots);
+    allocationStatusBackup= firstFitAllocationMainSlotMatrix(lightTreeBackup,1,requiredSlots);
+
+    int returnStatus=0;
+    if(allocationStatusOriginal.first==0 && allocationStatusBackup.first ==0){
+        returnStatus=0;
     }
+    else if(allocationStatusOriginal.first==0 && allocationStatusBackup.first==1){
+        deallocationMainSlotMatrix(lightTreeBackup,allocationStatusBackup.second,requiredSlots);
+        returnStatus=0;
+    }
+    else if(allocationStatusOriginal.first==1 && allocationStatusBackup.first==0){
+        deallocationMainSlotMatrix(lightTree,allocationStatusOriginal.second,requiredSlots);
+        returnStatus=0;
+    }
+    else{
+        returnStatus=1;
+    }
+
+    cout<<"Req Id is "<<req_id<<" Allocation Status is "<<allocationStatusOriginal.first<<" "<<allocationStatusBackup.first<<endl;
+    beginIndexOriginal=allocationStatusOriginal.second;
+    beginIndexBackup=allocationStatusBackup.second;
+    return returnStatus;
+
 }
 
 void sort(int id) // what does this sort?
@@ -1071,7 +1067,7 @@ int main()
                 }
             }
 
-            printSlotMatrixState(id);
+            // printSlotMatrixState(id);
             printMainSlotMatrix();
             sem_post(matrix_semaphore);
 
