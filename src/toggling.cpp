@@ -16,20 +16,22 @@ using namespace std;
 //VARIABLES
 #define T 4 //not used
 #define noOfRequests 10
-#define totalRequests 10
+#define totalRequests 200
 #define maxSlotsPerReq 4
 #define maxBtPerReq 10
 #define NO_OF_DEST 3
-#define SLOTS 20
-#define VERTICES 6
-#define EDGES 8
-#define filename "stand6.txt"
+#define SLOTS 320
+#define VERTICES 14
+#define EDGES 22
+#define filename "./NSFNET.txt"
 #define output_file 5
 //VARIABLES
 
 int pid;
 int *simulation_info;
 int *number;
+float *FI_array;
+
 // int Result[VERTICES][VERTICES];     // Stores the edges of the light tree
 int secondPath[VERTICES][VERTICES]; // Stores the edges of the backup disjoint path
 int activePoint[VERTICES];          // keeps track of active vertices in the network for the request(source and destinations),
@@ -89,6 +91,14 @@ int generateRequest(int &bt, int &src, int requestId)
     bt = burstTime;
     requestsInfo[requestId][NO_OF_DEST + 5]=burstTime;
     return noOfSlotsReq;
+}
+void printGraph(int graph[VERTICES][VERTICES]){
+    for(int i=0;i<VERTICES;i++){
+        for(int j=0;j<VERTICES;j++){
+            cout<<graph[i][j]<<" ";
+        }
+        cout<<endl;
+    }
 }
 
 set<pair<int, int>> getLightTree(int parent[], int src, int destinations[])
@@ -301,6 +311,47 @@ void deallocationMainSlotMatrix(set<pair<int, int>> lightTree, int beginIndex, i
         }
     }
 }
+
+//=============================FINDING FI======================================//
+float findFIMainSlotMatrix(set<pair<int, int>> lightTree)
+{
+    //finding the FI
+    float FI=0;
+    for (auto it : lightTree)
+    {
+        int u = it.first;
+        int v = it.second;
+        int noOfEmptySlots = 0;
+        int noOfEmptyContigousSlots = 0;
+        //finding the slots
+        for (int i = 0; i < SLOTS;)
+        {
+            int k = i;
+            while (k < SLOTS && slotMatrix[u][v].slots[k] == 0)
+            {
+                k++;
+            }
+            if (k - i > 0)
+            {
+                noOfEmptySlots += k - i;
+                noOfEmptyContigousSlots++;
+                i = k + 1;
+            }
+            else
+            {
+                i = i + 1;
+            }
+        }
+
+        float FI_edge = float(noOfEmptyContigousSlots) / float(noOfEmptySlots);
+        FI = FI + FI_edge;
+    }
+
+    return FI;
+}
+//=============================FINDING FI======================================//
+
+
 
 //returns a pair of (slotFound and beginIndex if slotFound is true)
 pair<int, int> firstFitAllocationMainSlotMatrix(set<pair<int, int>> lightTree, int partition, int requiredSlots)
@@ -520,6 +571,10 @@ int main()
     // stores the request count
     int shmid5 = shmget(IPC_PRIVATE, 2 * sizeof(int), 0777 | IPC_CREAT);
     number = (int *)shmat(shmid5, 0, 0);
+    
+    // stores the FI
+    float shmid6 = shmget(IPC_PRIVATE, totalRequests * sizeof(float), 0777 | IPC_CREAT);
+    FI_array = (float *)shmat(shmid6, 0, 0);
 
     // for each element of matrix slotMatrix[28][28], changing its spectrum allocation 320 SLOTS to intial
     // value 0.
@@ -560,16 +615,23 @@ int main()
         {
             sleep(15);
             int noOfBlocked = 0;
+            float total_FI = 0;
             for (int i = 0; i <= id; i++)
             {
-                if (requestsInfo[i][NO_OF_DEST + 1] == 2)
+                if (requestsInfo[i][ NO_OF_DEST + 1] == 2)
                     noOfBlocked++;
+                else if(requestsInfo[i][NO_OF_DEST + 1]== 0){
+                    total_FI=total_FI+FI_array[i];
+                }
             }
             float BP = (float)noOfBlocked / totalRequests;
             cout << id << " Blocked requests = " << noOfBlocked << ", BP = " << BP << endl;
             float BBP = (float)simulation_info[3] / (simulation_info[2] + simulation_info[3]);
             cout << id << "   "
                  << "BBP = " << BBP << endl;
+            float averageFI=total_FI/(totalRequests-noOfBlocked);
+            cout << id << "   "
+                 << "Average FI of satisfied req = " << averageFI << endl;
             /*
             ofstream myfile;
             myfile.open("dataset1.txt", ios_base::app);
@@ -579,7 +641,7 @@ int main()
 
             //======================PRINT THE SLOTMATRICES TO FILE==================//
             ofstream myfile;
-            string filenam = "samples/slot_matrices.txt";
+            string filenam = "samples/slot_matrices_toggling.txt";
             myfile.open(filenam, ios_base::out);
             //myfile << VERTICES << "," << EDGES << "," << totalRequests << "," << NO_OF_DEST << "," << SLOTS << "," << BP << "," << BBP << endl;
             //printing the slot
@@ -650,6 +712,9 @@ int main()
             shmdt(number);
             shmctl(shmid5, IPC_RMID, NULL);
 
+            shmdt(FI_array);
+            shmctl(shmid6, IPC_RMID, NULL);
+
             shm_unlink(shm_name_id);
             sem_destroy(id_semaphore);
 
@@ -657,6 +722,8 @@ int main()
             sem_destroy(matrix_semaphore);
 
             // kill(getpid(), SIGKILL);
+            // cout<<"SHARED_MEMORY DESTROYED"<<endl
+
             exit(2);
 
         }
@@ -664,7 +731,9 @@ int main()
         // -----when id < totalRequests, Common to every request-----------------------
         pid = getpid();
         unsigned tt = unsigned(pid) + unsigned(time(0));
-        srand(tt); //seeds random
+        // srand(tt); //seeds random
+        // srand(1); //seeds random
+        srand(id+1); //seeds random
         int burstTime = 0;
         int src = 0;
 
@@ -734,7 +803,11 @@ int main()
             }
 
             // printSlotMatrixState(id);
-            printMainSlotMatrix();
+            // printMainSlotMatrix();
+            if(isSlotsAllocated==1){
+                FI_array[id]=findFIMainSlotMatrix(lightTree)+findFIMainSlotMatrix(lightTreeBackup);
+            }
+
             sem_post(matrix_semaphore);
 
             if(isSlotsAllocated==0)
@@ -823,28 +896,29 @@ int main()
     */
     }
 
-    while (true)
-    {
-        cout<<"ASdasdasd";
-        int status;
-        pid_t done = wait(&status);
-        if (done == -1)
-        {
-            if (errno == ECHILD){
-                break; // no more child processes
-            }
-        }
-        else
-        {
-            if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-            {
-                cerr << "pid " << done << " failed" << endl;
-                exit(1);
-            }
-        }
-    }
+    // while (true)
+    // {
+    //     cout<<"ASdasdasd";
+    //     int status;
+    //     pid_t done = wait(&status);
+    //     if (done == -1)
+    //     {
+    //         if (errno == ECHILD){
+    //             cout<<"PARENT TERMINATING"<<endl;
+    //             break; // no more child processes
+    //         }
+    //     }
+    //     else
+    //     {
+    //         if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+    //         {
+    //             cerr << "pid " << done << " failed" << endl;
+    //             exit(1);
+    //         }
+    //     }
+    // }
 
-    cout<<"PARENT TERMINATING"<<endl;
+    
 
     return 0;
 }
