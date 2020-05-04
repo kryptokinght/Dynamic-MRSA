@@ -16,9 +16,9 @@ using namespace std;
 //VARIABLES
 #define T 4 //not used
 #define noOfRequests 10
-#define totalRequests 200
+#define totalRequests 100
 #define maxSlotsPerReq 4
-#define maxBtPerReq 10
+#define maxBtPerReq 20
 #define NO_OF_DEST 3
 #define SLOTS 320
 #define VERTICES 14
@@ -597,6 +597,9 @@ int main()
         sem_wait(id_semaphore);
         if(number[0]<=totalRequests)
             fork();
+        else
+            break;
+        
         
         if(number[0]<totalRequests)
             cout<<endl<<"Entered ID Critical Section"<<endl;
@@ -614,14 +617,29 @@ int main()
         if (id == totalRequests) //on the last request, display BP and BBP
         {
             sleep(15);
+            
+            int sleepFlag=1;
+            while(sleepFlag==1){
+                sleep(3);
+                sem_wait(id_semaphore);
+                if(number[1]>=totalRequests)
+                    sleepFlag=0;
+                sem_post(id_semaphore);
+            }   
+
             int noOfBlocked = 0;
             float total_FI = 0;
-            for (int i = 0; i <= id; i++)
+            int c=0;
+            for (int i = 0; i < id; i++)
             {
+                cout<<"id: "<<i<<" status: "<<requestsInfo[i][NO_OF_DEST + 1]<<" "<< FI_array[i]<<endl;
+
                 if (requestsInfo[i][ NO_OF_DEST + 1] == 2)
                     noOfBlocked++;
                 else if(requestsInfo[i][NO_OF_DEST + 1]== 0){
+                    // cout<<"id: "<<i<<" status: "<<requestsInfo[i][NO_OF_DEST + 1]<<" "<< FI_array[i]<<endl;
                     total_FI=total_FI+FI_array[i];
+                    c++;
                 }
             }
             float BP = (float)noOfBlocked / totalRequests;
@@ -629,10 +647,10 @@ int main()
             float BBP = (float)simulation_info[3] / (simulation_info[2] + simulation_info[3]);
             cout << id << "   "
                  << "BBP = " << BBP << endl;
+            cout<<"is "<<((totalRequests-noOfBlocked))<<" c is "<<c<<endl;
             float averageFI=total_FI/(totalRequests-noOfBlocked);
             cout << id << "   "
-                 << "Average FI of satisfied req = " << averageFI << endl;
-            /*
+                 << "Average FI of satisfied req = " << averageFI << endl;            /*
             ofstream myfile;
             myfile.open("dataset1.txt", ios_base::app);
             myfile << VERTICES << "," << EDGES << "," << totalRequests << "," << NO_OF_DEST << "," << SLOTS << "," << BP << "," << BBP << endl;
@@ -699,28 +717,45 @@ int main()
 
         if (id >= totalRequests) //when we have generated 600 requests, terminate calling process
         {
-            // cout<<"id is "<<id<<" last code "<<totalRequests<<endl;
-            shmdt(slotMatrix);
-            shmctl(shmid, IPC_RMID, NULL);
+            cout<<"id is "<<id<<" last code "<<totalRequests<<endl;
+            sem_wait(id_semaphore);
+            int completed=number[1];
+            sem_post(id_semaphore);
+            // int sleepFlag_2=1;
+            // while(sleepFlag_2==1){
+            //     sleep(3);
+            //     sem_wait(id_semaphore);
+            //     cout<<"number[1] is "<<number[1]<<endl;
+            //     if(number[1]>=totalRequests)
+            //         number[1]++;
+            //         sleepFlag_2=0;
+            //     sem_post(id_semaphore);
+            // } 
+            if(completed==totalRequests){
+                number[1]++;
+                shmdt(slotMatrix);
+                shmctl(shmid, IPC_RMID, NULL);
 
-            shmdt(simulation_info);
-            shmctl(shmid1, IPC_RMID, NULL);
+                shmdt(simulation_info);
+                shmctl(shmid1, IPC_RMID, NULL);
 
-            shmdt(requestsInfo);
-            shmctl(shmid4, IPC_RMID, NULL);
+                shmdt(requestsInfo);
+                shmctl(shmid4, IPC_RMID, NULL);
 
-            shmdt(number);
-            shmctl(shmid5, IPC_RMID, NULL);
+                shmdt(number);
+                shmctl(shmid5, IPC_RMID, NULL);
 
-            shmdt(FI_array);
-            shmctl(shmid6, IPC_RMID, NULL);
+                shmdt(FI_array);
+                shmctl(shmid6, IPC_RMID, NULL);
 
-            shm_unlink(shm_name_id);
-            sem_destroy(id_semaphore);
+                shm_unlink(shm_name_id);
+                sem_destroy(id_semaphore);
 
-            shm_unlink(shm_name_mat);
-            sem_destroy(matrix_semaphore);
+                shm_unlink(shm_name_mat);
+                sem_destroy(matrix_semaphore);
+            }  
 
+            
             // kill(getpid(), SIGKILL);
             // cout<<"SHARED_MEMORY DESTROYED"<<endl
             exit(2);
@@ -732,7 +767,7 @@ int main()
         unsigned tt = unsigned(pid) + unsigned(time(0));
         // srand(tt); //seeds random
         // srand(1); //seeds random
-        srand(id+1); //seeds random
+        srand(((id)%10) + 1); //seeds random
         int burstTime = 0;
         int src = 0;
 
@@ -893,6 +928,7 @@ int main()
       cout << requestsInfo[id][j] << " ";
     cout << endl;
     */
+        number[1]++;
     }
 
     // while (true)
