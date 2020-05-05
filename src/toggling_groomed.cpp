@@ -16,7 +16,7 @@ using namespace std;
 //VARIABLES
 #define T 4 //not used
 #define noOfRequests 10
-#define totalRequests 100
+#define totalRequests 200
 #define maxSlotsPerReq 4
 #define maxBtPerReq 20
 #define NO_OF_DEST 3
@@ -25,6 +25,7 @@ using namespace std;
 #define EDGES 22
 #define filename "./NSFNET.txt"
 #define output_file 5
+#define randomFactor 50
 //VARIABLES
 
 int pid;
@@ -47,7 +48,11 @@ int (*requestsInfo)[15]; /* stores information about a request
                           NO OF DEST +6 - req_id
                           NO OF DEST +7 - reason of blocking
                         */
-
+enum blocking
+{
+    lightTreeNotFound,
+    UnableToAllocateSlots
+};
 
 int id_shm;
 sem_t *id_semaphore;
@@ -298,6 +303,65 @@ void printSlotMatrixState(int req_id)
         }
     }
     cout << endl;
+}
+
+void writeToFile()
+{
+    ofstream myfile;
+    string filenam = "samples/slot_matrices_proposed.txt";
+    myfile.open(filenam, ios_base::out);
+    //myfile << VERTICES << "," << EDGES << "," << totalRequests << "," << NO_OF_DEST << "," << SLOTS << "," << BP << "," << BBP << endl;
+    //printing the slot
+
+    //   0-source,
+    //   1,2,3 - destinations,
+    //   NO OF DEST +1 - status(1-active, 3- groomed, 4-completed, 2 - blocked),
+    //   NO OF DEST +2 - beginning slot original,
+    //   NO OF DEST +3 - begininning slot bakcup
+    //   NO OF DEST +4 - required slots
+    //   NO OF DEST +5 - burst time
+    //   NO OF DEST +6 - req_id
+    //   NO OF DEST +7 - reason of blocking
+    for (int req_id = 0; req_id < totalRequests; req_id++)
+    {
+        myfile << "Reqq_id: " << req_id << " Src: " << requestsInfo[req_id][0];
+        myfile << " Dst: {";
+        for (int i = 0; i < NO_OF_DEST; i++)
+        {
+            myfile << requestsInfo[req_id][i + 1] << ",";
+        }
+
+        myfile << " } Slots_Req: " << requestsInfo[req_id][NO_OF_DEST + 4] << " Burst_Time: " << requestsInfo[req_id][NO_OF_DEST + 5];
+        myfile << " Status: " << requestsInfo[req_id][NO_OF_DEST + 1] << " beg_slot_orig: " << requestsInfo[req_id][NO_OF_DEST + 2] + 1 << " beg_slot_index_backup: " << requestsInfo[req_id][NO_OF_DEST + 3] + 1;
+        if (requestsInfo[req_id][NO_OF_DEST + 7] == lightTreeNotFound)
+            myfile << " Reason_of_Blocking: Light Tree not found " << endl;
+        else if (requestsInfo[req_id][NO_OF_DEST + 7] == UnableToAllocateSlots)
+            myfile << " Reason_of_Blocking: Unable to allocate " << endl;
+        else
+            myfile << endl;
+
+        myfile << "SLOT MATRIX \n";
+        myfile << "\t\t";
+        for (int i = 1; i <= SLOTS; i++)
+            myfile << i << "   ";
+
+        myfile << endl;
+        for (int i = 0; i < VERTICES; i++)
+        {
+            for (int j = 0; j < VERTICES; j++)
+            {
+
+                myfile << i << "-" << j << ":\t ";
+                for (int k = 0; k < SLOTS; k++)
+                {
+                    myfile << slotMatrixStates[req_id][i][j].slots[k] << "\t";
+                }
+                myfile << endl;
+            }
+        }
+    }
+    myfile.close();
+    //end of slot print
 }
 
 //=============================DEALLOCATION OF MAIN SLOT MATRIX =============================================//
@@ -665,7 +729,7 @@ void sort(int id) // what does this sort?
 }
 
 //-----------------driver function--------------------------------------------//
-int main()
+int main(int argc,char **argv)
 {
     //-----READS graph from text file-------------------------
     ifstream input(filename, ios::in);
@@ -761,11 +825,6 @@ int main()
     }
     cout << "Shared memory allocated successfully!" << endl;
     int noOfBlockedReq = 0, noOfFinishedReq = 0;
-    enum blocking
-    {
-        lightTreeNotFound,
-        UnableToAllocateSlots
-    };
 
     for (int i = 0; i < noOfRequests; i++)
     {
@@ -829,6 +888,7 @@ int main()
             float averageFI=total_FI/(totalRequests-noOfBlocked);
             cout << id << "   "
                  << "Average FI of satisfied req = " << averageFI << endl;
+            cout<<"Filename "<<argv[0]<<endl;
             /*
             ofstream myfile;
             myfile.open("dataset1.txt", ios_base::app);
@@ -837,61 +897,7 @@ int main()
             */
 
             //======================PRINT THE SLOTMATRICES TO FILE==================//
-            ofstream myfile;
-            string filenam = "samples/slot_matrices_proposed.txt";
-            myfile.open(filenam, ios_base::out);
-            //myfile << VERTICES << "," << EDGES << "," << totalRequests << "," << NO_OF_DEST << "," << SLOTS << "," << BP << "," << BBP << endl;
-            //printing the slot
-
-            //   0-source,
-            //   1,2,3 - destinations,
-            //   NO OF DEST +1 - status(1-active, 3- groomed, 4-completed, 2 - blocked), 
-            //   NO OF DEST +2 - beginning slot original,
-            //   NO OF DEST +3 - begininning slot bakcup
-            //   NO OF DEST +4 - required slots
-            //   NO OF DEST +5 - burst time
-            //   NO OF DEST +6 - req_id
-            //   NO OF DEST +7 - reason of blocking
-            for (int req_id = 0; req_id < totalRequests; req_id++)
-            {
-                myfile << "Reqq_id: " << req_id << " Src: " << requestsInfo[req_id][0];
-                myfile << " Dst: {";
-                for (int i = 0; i < NO_OF_DEST; i++)
-                {
-                    myfile << requestsInfo[req_id][i + 1] << ",";
-                }
-
-                myfile << " } Slots_Req: " << requestsInfo[req_id][NO_OF_DEST + 4] << " Burst_Time: " << requestsInfo[req_id][NO_OF_DEST + 5] ;                
-                myfile << " Status: " << requestsInfo[req_id][NO_OF_DEST + 1] << " beg_slot_orig: " << requestsInfo[req_id][NO_OF_DEST + 2]+1 <<" beg_slot_index_backup: "<<requestsInfo[req_id][NO_OF_DEST + 3]+1; 
-                if(requestsInfo[req_id][NO_OF_DEST + 7] == lightTreeNotFound)
-                    myfile << " Reason_of_Blocking: Light Tree not found "<<endl;
-                else if(requestsInfo[req_id][NO_OF_DEST + 7] == UnableToAllocateSlots)
-                    myfile << " Reason_of_Blocking: Unable to allocate "<<endl;
-                else
-                    myfile<<endl;
-
-                myfile << "SLOT MATRIX \n";
-                myfile << "\t\t";
-                for (int i = 1; i <= SLOTS; i++)
-                    myfile << i << "   ";
-
-                myfile << endl;
-                for (int i = 0; i < VERTICES; i++)
-                {
-                    for (int j = 0; j < VERTICES; j++)
-                    {
-
-                        myfile << i << "-" << j << ":\t ";
-                        for (int k = 0; k < SLOTS; k++)
-                        {
-                            myfile << slotMatrixStates[req_id][i][j].slots[k] << "\t";
-                        }
-                        myfile << endl;
-                    }
-                }
-            }
-            myfile.close();
-            //end of slot print
+            // writeToFile();
         }
 
         if (id >= totalRequests) //when we have generated 600 requests, terminate calling process
@@ -946,7 +952,7 @@ int main()
         unsigned tt = unsigned(pid) + unsigned(time(0));
         // srand(tt); //seeds random
         // srand(1); //seeds random
-        srand(((id)%20) + 1); //seeds random
+        srand(((id)%randomFactor) + 1); //seeds random
         int burstTime = 0;
         int src = 0;
 
