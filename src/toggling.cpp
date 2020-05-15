@@ -20,13 +20,12 @@ using namespace std;
 #define maxSlotsPerReq 4
 #define maxBtPerReq 20
 #define NO_OF_DEST 3
-#define SLOTS 320
+#define SLOTS 1000
 #define VERTICES 14
 #define EDGES 22
 #define filename "./NSFNET.txt"
 #define output_file 5
-#define randomFactor 50
-//VARIABLES
+#define randomFactor 50//VARIABLES
 
 int pid;
 int *simulation_info;
@@ -41,13 +40,15 @@ int graph[VERTICES][VERTICES];
 int (*requestsInfo)[15]; /* stores information about a request
                           0-source, 
                           1,2,3 - destinations, 
-                          NO OF DEST +1 - status(1-ok, 2 - blocked), 
+                          NO OF DEST +1 - status(1-active, 0-completed, 2 - blocked), 
                           NO OF DEST +2 - beginning slot original,  
                           NO OF DEST +3 - begininning slot bakcup
                           NO OF DEST +4 - required slots
                           NO OF DEST +5 - burst time 
                           NO OF DEST +6 - req_id
                           NO OF DEST +7 - reason of blocking
+                          NO OF DEST +8 - hop count primary
+                          NO OF DEST +9 - hop count backup
                         */
 enum blocking
 {
@@ -680,28 +681,36 @@ int main(int argc,char **argv)
         if (id == totalRequests) //on the last request, display BP and BBP
         {
             sleep(15);
-            
-            int sleepFlag=1;
-            while(sleepFlag==1){
+            cout<<"id == totalReq waiting for all satisfied req to complete"<<endl;
+            int sleepFlag = 1;
+            while (sleepFlag == 1)
+            {
                 sleep(3);
                 sem_wait(id_semaphore);
-                if(number[1]>=totalRequests)
-                    sleepFlag=0;
+                if (number[1] >= totalRequests)
+                    sleepFlag = 0;
                 sem_post(id_semaphore);
-            }   
+            }
 
             int noOfBlocked = 0;
             float total_FI = 0;
-            int c=0;
+            float totalSlotsSatisfied = 0;
+            float hopCountPrimary = 0;
+            float hopCountBackup = 0;
+            int c = 0;
             for (int i = 0; i < id; i++)
             {
-                cout<<"id: "<<i<<" status: "<<requestsInfo[i][NO_OF_DEST + 1]<<" "<< FI_array[i]<<endl;
+                cout << "id: " << i << " status: " << requestsInfo[i][NO_OF_DEST + 1] << " " << FI_array[i] << endl;
 
-                if (requestsInfo[i][ NO_OF_DEST + 1] == 2)
+                if (requestsInfo[i][NO_OF_DEST + 1] == 2)
                     noOfBlocked++;
-                else if(requestsInfo[i][NO_OF_DEST + 1]== 0){
+                else if (requestsInfo[i][NO_OF_DEST + 1] == 0)
+                {
                     // cout<<"id: "<<i<<" status: "<<requestsInfo[i][NO_OF_DEST + 1]<<" "<< FI_array[i]<<endl;
-                    total_FI=total_FI+FI_array[i];
+                    total_FI = total_FI + FI_array[i];
+                    totalSlotsSatisfied = totalSlotsSatisfied + requestsInfo[i][NO_OF_DEST + 4];
+                    hopCountPrimary += requestsInfo[i][NO_OF_DEST + 8];
+                    hopCountBackup += requestsInfo[i][NO_OF_DEST + 9];
                     c++;
                 }
             }
@@ -710,12 +719,24 @@ int main(int argc,char **argv)
             float BBP = (float)simulation_info[3] / (simulation_info[2] + simulation_info[3]);
             cout << id << "   "
                  << "BBP = " << BBP << endl;
-            cout<<"is "<<((totalRequests-noOfBlocked))<<" c is "<<c<<endl;
-            float averageFI=total_FI/(totalRequests-noOfBlocked);
+            cout << "is " << ((totalRequests - noOfBlocked)) << " c is " << c << endl;
+            float averageFI = total_FI / (totalRequests - noOfBlocked);
             cout << id << "   "
                  << "Average FI of satisfied req = " << averageFI << endl;
-            cout<<"Filename "<<argv[0]<<endl;
-                             /*
+            float averageSlotUtilisationPrimary = 0;
+            float averageSlotUtilisationBackup = 0;
+            float networkLoad = totalRequests;
+            float averageHopCountPrimary = hopCountPrimary / (totalRequests - noOfBlocked);
+            float averageHopCountBackup = hopCountBackup / (totalRequests - noOfBlocked);
+            float averageSlotCount = totalSlotsSatisfied / (totalRequests - noOfBlocked);
+            averageSlotUtilisationPrimary = (networkLoad * averageHopCountPrimary * averageSlotCount) / (EDGES * SLOTS);
+            averageSlotUtilisationBackup = (networkLoad * averageHopCountBackup * averageSlotCount) / (EDGES * SLOTS);
+            cout << id << "   "
+                 << "Average Slot Utilisation Primary = " << averageSlotUtilisationPrimary<< endl;            
+            cout << id << "   "
+                 << "Average Slot Utilisation Backup = "  <<  averageSlotUtilisationBackup<< endl;            
+            cout << "Filename " << argv[0] << endl;
+            /*
             ofstream myfile;
             myfile.open("dataset1.txt", ios_base::app);
             myfile << VERTICES << "," << EDGES << "," << totalRequests << "," << NO_OF_DEST << "," << SLOTS << "," << BP << "," << BBP << endl;
@@ -889,6 +910,9 @@ int main(int argc,char **argv)
             requestsInfo[id][NO_OF_DEST + 5] = burstTime;
             requestsInfo[id][NO_OF_DEST + 6] = id;
             requestsInfo[id][NO_OF_DEST + 7] = INT_MIN;
+            requestsInfo[id][NO_OF_DEST + 8] = lightTree.size();       //hop count primary
+            requestsInfo[id][NO_OF_DEST + 9] = lightTreeBackup.size(); //hop count backup
+
             sleep(burstTime);
             requestsInfo[id][NO_OF_DEST + 1] = 0;   // 0 means completed
             simulation_info[2] += noOfSlotsReq + 2; // simulation_info[2] : no of SLOTS allocated
@@ -925,6 +949,9 @@ int main(int argc,char **argv)
             requestsInfo[id][NO_OF_DEST + 5] = burstTime; //burst time
             requestsInfo[id][NO_OF_DEST + 6] = id; //id
             requestsInfo[id][NO_OF_DEST + 7] = reasonOfBlocking; //reasonOfBlocking
+            requestsInfo[id][NO_OF_DEST + 8] = lightTree.size();       //hop count primary
+            requestsInfo[id][NO_OF_DEST + 9] = lightTreeBackup.size(); //hop count backup
+
             reqSatisfied[id] =0;
             simulation_info[3] += noOfSlotsReq; // simulation_info[3] : no of SLOTS blocked
             simulation_info[1]++;               // simulation_info[1] : no of requests blocked
@@ -942,28 +969,27 @@ int main(int argc,char **argv)
         number[1]++;    
     }
 
-    // while (true)
-    // {
-    //     cout<<"ASdasdasd";
-    //     int status;
-    //     pid_t done = wait(&status);
-    //     if (done == -1)
-    //     {
-    //         if (errno == ECHILD){
-    //             cout<<"PARENT TERMINATING"<<endl;
-    //             break; // no more child processes
-    //         }
-    //     }
-    //     else
-    //     {
-    //         if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-    //         {
-    //             cerr << "pid " << done << " failed" << endl;
-    //             exit(1);
-    //         }
-    //     }
-    // }
-
+    while (true)
+    {
+        // cout<<"ASdasdasd";
+        int status;
+        pid_t done = wait(&status);
+        if (done == -1)
+        {
+            if (errno == ECHILD)
+            {
+                break; // no more child processes
+            }
+        }
+        else
+        {
+            if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+            {
+                // cerr << "pid " << done << " failed" << endl;
+                exit(1);
+            }
+        }
+    }
     
 
     return 0;

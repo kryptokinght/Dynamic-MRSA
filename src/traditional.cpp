@@ -20,13 +20,12 @@ using namespace std;
 #define maxSlotsPerReq 4
 #define maxBtPerReq 20
 #define NO_OF_DEST 3
-#define SLOTS 320
+#define SLOTS 1000
 #define VERTICES 14
 #define EDGES 22
 #define filename "./NSFNET.txt"
 #define output_file 5
-#define randomFactor 50
-//VARIABLES
+#define randomFactor 50//VARIABLES
 
 int pid;
 int *simulation_info;
@@ -41,13 +40,15 @@ int graph[VERTICES][VERTICES];
 int (*requestsInfo)[15]; /* stores information about a request
                           0-source, 
                           1,2,3 - destinations, 
-                          NO OF DEST +1 - status(1-ok, 2 - blocked), 
+                          NO OF DEST +1 - status(1-active, 0-completed, 2 - blocked), 
                           NO OF DEST +2 - beginning slot original,  
                           NO OF DEST +3 - begininning slot bakcup
                           NO OF DEST +4 - required slots
                           NO OF DEST +5 - burst time 
                           NO OF DEST +6 - req_id
                           NO OF DEST +7 - reason of blocking
+                          NO OF DEST +8 - hop count primary
+                          NO OF DEST +9 - hop count backup
                         */
 enum blocking
 {
@@ -67,7 +68,6 @@ struct slotType // slot matrix
     //bool slots[SLOTS];
     int status;
 };
-
 
 slotType (*slotMatrix)[VERTICES]; //slotMatrix is a pointer to an array of VERTICES
 
@@ -95,16 +95,19 @@ int generateRequest(int &bt, int &src, int requestId)
     int noOfSlotsReq = (rand() % maxSlotsPerReq) + 1; // randomly allot SLOTS between 1 and 4
     int burstTime = (rand() % maxBtPerReq) + 1;       // randomly assign burst time between 1 and 5
     bt = burstTime;
-    requestsInfo[requestId][NO_OF_DEST + 5]=burstTime;
+    requestsInfo[requestId][NO_OF_DEST + 5] = burstTime;
     return noOfSlotsReq;
 }
 
-void printGraph(int graph[VERTICES][VERTICES]){
-    for(int i=0;i<VERTICES;i++){
-        for(int j=0;j<VERTICES;j++){
-            cout<<graph[i][j]<<" ";
+void printGraph(int graph[VERTICES][VERTICES])
+{
+    for (int i = 0; i < VERTICES; i++)
+    {
+        for (int j = 0; j < VERTICES; j++)
+        {
+            cout << graph[i][j] << " ";
         }
-        cout<<endl;
+        cout << endl;
     }
 }
 set<pair<int, int>> getLightTree(int parent[], int src, int destinations[])
@@ -116,7 +119,8 @@ set<pair<int, int>> getLightTree(int parent[], int src, int destinations[])
     {
         int dest = destinations[i];
         int par = parent[dest];
-        if (par == -1){
+        if (par == -1)
+        {
             s.clear();
             return s;
         }
@@ -128,7 +132,8 @@ set<pair<int, int>> getLightTree(int parent[], int src, int destinations[])
         {
             dest = par;
             par = parent[dest];
-            if (par == -1){
+            if (par == -1)
+            {
                 s.clear();
                 return s;
             }
@@ -180,13 +185,14 @@ set<pair<int, int>> dijkstra(int src, int destinations[])
     // }
     // cout << endl;
     set<pair<int, int>> s = getLightTree(parent, src, destinations); //adds to result
-        
+
     cout << "ORIGINAL LIGHT TREE" << endl;
     for (auto it : s)
     {
         int u = it.first;
         int v = it.second;
-        cout<<"("<<u<<"-"<<v<<")"<<",";
+        cout << "(" << u << "-" << v << ")"
+             << ",";
     }
     cout << endl;
 
@@ -244,18 +250,18 @@ set<pair<int, int>> secondary_dijkstra(int src, int destinations[], set<pair<int
     // }
     // cout << endl;
     set<pair<int, int>> s = getLightTree(parent, src, destinations); //adds to result
-    
+
     cout << "BACKUP LIGHT TREE" << endl;
     for (auto it : s)
     {
         int u = it.first;
         int v = it.second;
-        cout<< "("<<u<<"-"<<v<<")"<<",";
+        cout << "(" << u << "-" << v << ")"
+             << ",";
     }
     cout << endl;
     return s;
 }
-
 
 //=============================PRINT UTILITY FUNCTION FOR MAIN SLOT MATRIX===================================//
 
@@ -281,12 +287,13 @@ void printMainSlotMatrix()
 
 //=============================PRINT UTILITY FUNCTION FOR MAIN SLOT MATRIX===================================//
 
-void printSlotMatrixState(int req_id){
-    
-    cout<<"Printing Slot Matrix State"<<endl;
+void printSlotMatrixState(int req_id)
+{
+
+    cout << "Printing Slot Matrix State" << endl;
     for (int i = 1; i <= SLOTS; i++)
         cout << i << "   ";
-    cout<<endl;
+    cout << endl;
     for (int i = 0; i < VERTICES; i++)
     {
         for (int j = 0; j < VERTICES; j++)
@@ -294,12 +301,12 @@ void printSlotMatrixState(int req_id){
             cout << i << "-" << j << ":\t ";
             for (int k = 0; k < SLOTS; k++)
             {
-                cout<<slotMatrixStates[req_id][i][j].slots[k]<<"   ";
+                cout << slotMatrixStates[req_id][i][j].slots[k] << "   ";
             }
-            cout<<endl;
+            cout << endl;
         }
     }
-    cout<<endl;
+    cout << endl;
 }
 
 void writeToFile()
@@ -362,7 +369,8 @@ void writeToFile()
 }
 
 //=============================DEALLOCATION OF MAIN SLOT MATRIX =============================================//
-void deallocationMainSlotMatrix(set<pair<int, int>> lightTree, int beginIndex, int requiredSlots){
+void deallocationMainSlotMatrix(set<pair<int, int>> lightTree, int beginIndex, int requiredSlots)
+{
     // deallocation
     for (auto it : lightTree)
     {
@@ -380,7 +388,7 @@ void deallocationMainSlotMatrix(set<pair<int, int>> lightTree, int beginIndex, i
 float findFIMainSlotMatrix(set<pair<int, int>> lightTree)
 {
     //finding the FI
-    float FI=0;
+    float FI = 0;
     for (auto it : lightTree)
     {
         int u = it.first;
@@ -414,7 +422,6 @@ float findFIMainSlotMatrix(set<pair<int, int>> lightTree)
     return FI;
 }
 //=============================FINDING FI======================================//
-
 
 //returns a pair of (slotFound and beginIndex if slotFound is true)
 pair<int, int> firstFitAllocationMainSlotMatrix(set<pair<int, int>> lightTree, int partition, int requiredSlots)
@@ -489,9 +496,8 @@ pair<int, int> firstFitAllocationMainSlotMatrix(set<pair<int, int>> lightTree, i
 
 //=========================ALLOCATION OF MAIN SLOT MATRIX=======================================================//
 
-
-
-void cloneSlotMatrix(struct slotType (&slotMatrixClone)[VERTICES][VERTICES]){
+void cloneSlotMatrix(struct slotType (&slotMatrixClone)[VERTICES][VERTICES])
+{
     for (int i = 0; i < VERTICES; i++)
     {
         for (int j = 0; j < VERTICES; j++)
@@ -504,39 +510,39 @@ void cloneSlotMatrix(struct slotType (&slotMatrixClone)[VERTICES][VERTICES]){
     }
 }
 
-
-
 int allocateSlots(set<pair<int, int>> lightTree, set<pair<int, int>> lightTreeBackup, int requiredSlots, int &beginIndexOriginal, int &beginIndexBackup, int req_id)
 {
 
+    pair<int, int> allocationStatusOriginal;
+    pair<int, int> allocationStatusBackup;
 
-    pair<int,int> allocationStatusOriginal;
-    pair<int,int> allocationStatusBackup;
+    allocationStatusOriginal = firstFitAllocationMainSlotMatrix(lightTree, 0, requiredSlots);
+    allocationStatusBackup = firstFitAllocationMainSlotMatrix(lightTreeBackup, 1, requiredSlots);
 
-    allocationStatusOriginal= firstFitAllocationMainSlotMatrix(lightTree,0,requiredSlots);
-    allocationStatusBackup= firstFitAllocationMainSlotMatrix(lightTreeBackup,1,requiredSlots);
+    int returnStatus = 0;
+    if (allocationStatusOriginal.first == 0 && allocationStatusBackup.first == 0)
+    {
+        returnStatus = 0;
+    }
+    else if (allocationStatusOriginal.first == 0 && allocationStatusBackup.first == 1)
+    {
+        deallocationMainSlotMatrix(lightTreeBackup, allocationStatusBackup.second, requiredSlots);
+        returnStatus = 0;
+    }
+    else if (allocationStatusOriginal.first == 1 && allocationStatusBackup.first == 0)
+    {
+        deallocationMainSlotMatrix(lightTree, allocationStatusOriginal.second, requiredSlots);
+        returnStatus = 0;
+    }
+    else
+    {
+        returnStatus = 1;
+    }
 
-    int returnStatus=0;
-    if(allocationStatusOriginal.first==0 && allocationStatusBackup.first ==0){
-        returnStatus=0;
-    }
-    else if(allocationStatusOriginal.first==0 && allocationStatusBackup.first==1){
-        deallocationMainSlotMatrix(lightTreeBackup,allocationStatusBackup.second,requiredSlots);
-        returnStatus=0;
-    }
-    else if(allocationStatusOriginal.first==1 && allocationStatusBackup.first==0){
-        deallocationMainSlotMatrix(lightTree,allocationStatusOriginal.second,requiredSlots);
-        returnStatus=0;
-    }
-    else{
-        returnStatus=1;
-    }
-
-    cout<<"Req Id is "<<req_id<<" Allocation Status is "<<allocationStatusOriginal.first<<" "<<allocationStatusBackup.first<<endl;
-    beginIndexOriginal=allocationStatusOriginal.second;
-    beginIndexBackup=allocationStatusBackup.second;
+    cout << "Req Id is " << req_id << " Allocation Status is " << allocationStatusOriginal.first << " " << allocationStatusBackup.first << endl;
+    beginIndexOriginal = allocationStatusOriginal.second;
+    beginIndexBackup = allocationStatusBackup.second;
     return returnStatus;
-
 }
 
 void sort(int id) // what does this sort?
@@ -557,7 +563,7 @@ void sort(int id) // what does this sort?
 }
 
 //-----------------driver function--------------------------------------------//
-int main(int argc,char **argv)
+int main(int argc, char **argv)
 {
     //-----READS graph from text file-------------------------
     ifstream input(filename, ios::in);
@@ -571,49 +577,54 @@ int main(int argc,char **argv)
 
     // printGraph(graph);
 
-//===============================CREATE THE SEMAPHORE FOR PROCESS SYN==============================//
-    
-    const char *shm_name_id="id_shm";
-    const char *shm_name_mat="mat_shm";
+    //===============================CREATE THE SEMAPHORE FOR PROCESS SYN==============================//
+
+    const char *shm_name_id = "id_shm";
+    const char *shm_name_mat = "mat_shm";
     //===============SEMAPHORE FOR PROTECTING REQ ID VALUE======================//
-    if ((id_shm = shm_open(shm_name_id, O_RDWR | O_CREAT, S_IRWXU))<0) {
+    if ((id_shm = shm_open(shm_name_id, O_RDWR | O_CREAT, S_IRWXU)) < 0)
+    {
         perror("shm_open");
         exit(1);
     }
 
-    if (ftruncate(id_shm, sizeof(sem_t)) < 0 ) {
+    if (ftruncate(id_shm, sizeof(sem_t)) < 0)
+    {
         perror("ftruncate");
         exit(1);
     }
 
-    if ((id_semaphore = (sem_t *)mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, id_shm, 0)) == MAP_FAILED) {
+    if ((id_semaphore = (sem_t *)mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, id_shm, 0)) == MAP_FAILED)
+    {
         perror("mmap");
         exit(1);
     }
 
     //==============SEMAPHORE FOR PROTECTING SLOT MATRIX========================//
-    if ((mat_shm = shm_open(shm_name_mat, O_RDWR | O_CREAT, S_IRWXU))<0) {
+    if ((mat_shm = shm_open(shm_name_mat, O_RDWR | O_CREAT, S_IRWXU)) < 0)
+    {
         perror("shm_open");
         exit(1);
     }
 
-    if (ftruncate(mat_shm, sizeof(sem_t)) < 0 ) {
+    if (ftruncate(mat_shm, sizeof(sem_t)) < 0)
+    {
         perror("ftruncate");
         exit(1);
     }
 
-    if (( matrix_semaphore= (sem_t *)mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, mat_shm, 0)) == MAP_FAILED) {
+    if ((matrix_semaphore = (sem_t *)mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, mat_shm, 0)) == MAP_FAILED)
+    {
         perror("mmap");
         exit(1);
     }
 
-//============================CREATION OF EMAPHORE FOR PROCESS SYN IS DONE=======================//
+    //============================CREATION OF EMAPHORE FOR PROCESS SYN IS DONE=======================//
 
-//============================INITITIALIZE CREATED SEMAPHORES====================================//
-    sem_init(id_semaphore, 1, 1); 
-    sem_init(matrix_semaphore,1, 1);
-//============================INITITIALIZE CREATED SEMAPHORES====================================//
-
+    //============================INITITIALIZE CREATED SEMAPHORES====================================//
+    sem_init(id_semaphore, 1, 1);
+    sem_init(matrix_semaphore, 1, 1);
+    //============================INITITIALIZE CREATED SEMAPHORES====================================//
 
     //----- initializes shared memory----------------------
     //attaches slot matrix to shared memory, which is of size [28][28] where 28 is the no of vertices
@@ -656,52 +667,60 @@ int main(int argc,char **argv)
     for (int i = 0; i < noOfRequests; i++)
     {
 
-        
         sem_wait(id_semaphore);
-        if(number[0]<=totalRequests)
+        if (number[0] <= totalRequests)
             fork();
         else
             break;
-        
-        
-        if(number[0]<totalRequests)
-            cout<<endl<<"Entered ID Critical Section"<<endl;
+
+        if (number[0] < totalRequests)
+            cout << endl
+                 << "Entered ID Critical Section" << endl;
 
         int id = number[0];
         number[0]++;
 
-        if(number[0]<totalRequests)
+        if (number[0] < totalRequests)
         {
             cout << "Request ID " << id << endl;
-            cout << "Coming Out Of ID Critical Section" << endl<< endl;
+            cout << "Coming Out Of ID Critical Section" << endl
+                 << endl;
         }
         sem_post(id_semaphore);
-        
+
         if (id == totalRequests) //on the last request, display BP and BBP
         {
             sleep(15);
-            
-            int sleepFlag=1;
-            while(sleepFlag==1){
+            cout<<"id == totalReq waiting for all satisfied req to complete"<<endl;
+            int sleepFlag = 1;
+            while (sleepFlag == 1)
+            {
                 sleep(3);
                 sem_wait(id_semaphore);
-                if(number[1]>=totalRequests)
-                    sleepFlag=0;
+                if (number[1] >= totalRequests)
+                    sleepFlag = 0;
                 sem_post(id_semaphore);
-            }   
+            }
 
             int noOfBlocked = 0;
             float total_FI = 0;
-            int c=0;
+            float totalSlotsSatisfied = 0;
+            float hopCountPrimary = 0;
+            float hopCountBackup = 0;
+            int c = 0;
             for (int i = 0; i < id; i++)
             {
-                cout<<"id: "<<i<<" status: "<<requestsInfo[i][NO_OF_DEST + 1]<<" "<< FI_array[i]<<endl;
+                cout << "id: " << i << " status: " << requestsInfo[i][NO_OF_DEST + 1] << " " << FI_array[i] << endl;
 
-                if (requestsInfo[i][ NO_OF_DEST + 1] == 2)
+                if (requestsInfo[i][NO_OF_DEST + 1] == 2)
                     noOfBlocked++;
-                else if(requestsInfo[i][NO_OF_DEST + 1]== 0){
+                else if (requestsInfo[i][NO_OF_DEST + 1] == 0)
+                {
                     // cout<<"id: "<<i<<" status: "<<requestsInfo[i][NO_OF_DEST + 1]<<" "<< FI_array[i]<<endl;
-                    total_FI=total_FI+FI_array[i];
+                    total_FI = total_FI + FI_array[i];
+                    totalSlotsSatisfied = totalSlotsSatisfied + requestsInfo[i][NO_OF_DEST + 4];
+                    hopCountPrimary += requestsInfo[i][NO_OF_DEST + 8];
+                    hopCountBackup += requestsInfo[i][NO_OF_DEST + 9];
                     c++;
                 }
             }
@@ -710,12 +729,24 @@ int main(int argc,char **argv)
             float BBP = (float)simulation_info[3] / (simulation_info[2] + simulation_info[3]);
             cout << id << "   "
                  << "BBP = " << BBP << endl;
-            cout<<"is "<<((totalRequests-noOfBlocked))<<" c is "<<c<<endl;
-            float averageFI=total_FI/(totalRequests-noOfBlocked);
+            cout << "is " << ((totalRequests - noOfBlocked)) << " c is " << c << endl;
+            float averageFI = total_FI / (totalRequests - noOfBlocked);
             cout << id << "   "
-                 << "Average FI of satisfied req = " << averageFI << endl; 
-            cout<<"Filename "<<argv[0]<<endl;
-                            /*
+                 << "Average FI of satisfied req = " << averageFI << endl;
+            float averageSlotUtilisationPrimary = 0;
+            float averageSlotUtilisationBackup = 0;
+            float networkLoad = totalRequests;
+            float averageHopCountPrimary = hopCountPrimary / (totalRequests - noOfBlocked);
+            float averageHopCountBackup = hopCountBackup / (totalRequests - noOfBlocked);
+            float averageSlotCount = totalSlotsSatisfied / (totalRequests - noOfBlocked);
+            averageSlotUtilisationPrimary = (networkLoad * averageHopCountPrimary * averageSlotCount) / (EDGES * SLOTS);
+            averageSlotUtilisationBackup = (networkLoad * averageHopCountBackup * averageSlotCount) / (EDGES * SLOTS);
+            cout << id << "   "
+                 << "Average Slot Utilisation Primary = " << averageSlotUtilisationPrimary << endl;
+            cout << id << "   "
+                 << "Average Slot Utilisation Backup = " << averageSlotUtilisationBackup << endl;
+            cout << "Filename " << argv[0] << endl;
+            /*
             ofstream myfile;
             myfile.open("dataset1.txt", ios_base::app);
             myfile << VERTICES << "," << EDGES << "," << totalRequests << "," << NO_OF_DEST << "," << SLOTS << "," << BP << "," << BBP << endl;
@@ -728,9 +759,9 @@ int main(int argc,char **argv)
 
         if (id >= totalRequests) //when we have generated 600 requests, terminate calling process
         {
-            cout<<"id is "<<id<<" last code "<<totalRequests<<endl;
+            cout << "id is " << id << " last code " << totalRequests << endl;
             sem_wait(id_semaphore);
-            int completed=number[1];
+            int completed = number[1];
             sem_post(id_semaphore);
             // int sleepFlag_2=1;
             // while(sleepFlag_2==1){
@@ -741,8 +772,9 @@ int main(int argc,char **argv)
             //         number[1]++;
             //         sleepFlag_2=0;
             //     sem_post(id_semaphore);
-            // } 
-            if(completed==totalRequests){
+            // }
+            if (completed == totalRequests)
+            {
                 number[1]++;
                 shmdt(slotMatrix);
                 shmctl(shmid, IPC_RMID, NULL);
@@ -764,13 +796,11 @@ int main(int argc,char **argv)
 
                 shm_unlink(shm_name_mat);
                 sem_destroy(matrix_semaphore);
-            }  
+            }
 
-            
             // kill(getpid(), SIGKILL);
             // cout<<"SHARED_MEMORY DESTROYED"<<endl
             exit(2);
-
         }
 
         // -----when id < totalRequests, Common to every request-----------------------
@@ -778,23 +808,25 @@ int main(int argc,char **argv)
         unsigned tt = unsigned(pid) + unsigned(time(0));
         // srand(tt); //seeds random
         // srand(1); //seeds random
-        srand(((id)%10) + 1); //seeds random
+        srand(((id) % 10) + 1); //seeds random
         int burstTime = 0;
         int src = 0;
 
         int noOfSlotsReq = generateRequest(burstTime, src, id); //burstTime and src is passed by ref, gets updated and send
-        
+
         //PRINT REQ INFO
         cout << "Reqq id: " << id << " Src: " << src;
-        cout<< " Dst: {";
-        for(int i=0;i<NO_OF_DEST;i++){
-            cout<< requestsInfo[id][i+1] << ",";
+        cout << " Dst: {";
+        for (int i = 0; i < NO_OF_DEST; i++)
+        {
+            cout << requestsInfo[id][i + 1] << ",";
         }
-        cout << " } Slots Req: " << noOfSlotsReq <<" Burst Time: "<<burstTime <<endl;
-        
+        cout << " } Slots Req: " << noOfSlotsReq << " Burst Time: " << burstTime << endl;
+
         int destinations[NO_OF_DEST];
-        for(int i=0;i<NO_OF_DEST;i++){
-            destinations[i]=requestsInfo[id][i+1];
+        for (int i = 0; i < NO_OF_DEST; i++)
+        {
+            destinations[i] = requestsInfo[id][i + 1];
         }
 
         set<pair<int, int>> lightTree = dijkstra(src, destinations);
@@ -814,28 +846,29 @@ int main(int argc,char **argv)
         sort(id); // sort the destinations in requests according to their value
         int beginIndexOriginal = 0;
         int beginIndexBackup = 0;
-        int isSlotsAllocated=0;
+        int isSlotsAllocated = 0;
         enum blocking reasonOfBlocking;
 
-        if(lightTree.size()==0 || lightTreeBackup.size()==0){
+        if (lightTree.size() == 0 || lightTreeBackup.size() == 0)
+        {
 
-            if(lightTree.size()==0)
-                cout<<"LIGHT TREE NOT FOUND FOR REQ ID "<<id<<" !!!!"<<endl;
-            if(lightTreeBackup.size()==0)
-                cout<<"BACKUP LIGHT TREE NOT FOUND FOR REQ ID "<<id<<" !!!!"<<endl;
-            
-            reasonOfBlocking=lightTreeNotFound;
-            isSlotsAllocated=0;
+            if (lightTree.size() == 0)
+                cout << "LIGHT TREE NOT FOUND FOR REQ ID " << id << " !!!!" << endl;
+            if (lightTreeBackup.size() == 0)
+                cout << "BACKUP LIGHT TREE NOT FOUND FOR REQ ID " << id << " !!!!" << endl;
 
+            reasonOfBlocking = lightTreeNotFound;
+            isSlotsAllocated = 0;
         }
-        else{
+        else
+        {
             sem_wait(matrix_semaphore);
 
-            cout<<"Inside Allocation Critical Section Of Req ID "<<id<<endl;
-            isSlotsAllocated = allocateSlots(lightTree, lightTreeBackup, noOfSlotsReq + 2, beginIndexOriginal, beginIndexBackup,id);
-            cout<<"Coming Out Of Allocation Critical Section Of Req ID "<<id<<endl;
+            cout << "Inside Allocation Critical Section Of Req ID " << id << endl;
+            isSlotsAllocated = allocateSlots(lightTree, lightTreeBackup, noOfSlotsReq + 2, beginIndexOriginal, beginIndexBackup, id);
+            cout << "Coming Out Of Allocation Critical Section Of Req ID " << id << endl;
 
-            cout<<"Inside Slot Matrix State Critical Section Of Req ID "<<id<<endl;
+            cout << "Inside Slot Matrix State Critical Section Of Req ID " << id << endl;
             for (int i = 0; i < VERTICES; i++)
             {
                 for (int j = 0; j < VERTICES; j++)
@@ -849,35 +882,34 @@ int main(int argc,char **argv)
 
             // printSlotMatrixState(id);
             // printMainSlotMatrix();
-            if(isSlotsAllocated==1){
-                FI_array[id]=findFIMainSlotMatrix(lightTree)+findFIMainSlotMatrix(lightTreeBackup);
+            if (isSlotsAllocated == 1)
+            {
+                FI_array[id] = findFIMainSlotMatrix(lightTree) + findFIMainSlotMatrix(lightTreeBackup);
             }
-            
+
             sem_post(matrix_semaphore);
 
-            if(isSlotsAllocated==0)
+            if (isSlotsAllocated == 0)
                 reasonOfBlocking = UnableToAllocateSlots;
         }
 
+        //store the state of slotmatrix in memory<<endl;
+        // sem_wait(matrix_semaphore);
 
-            //store the state of slotmatrix in memory<<endl;
-            // sem_wait(matrix_semaphore);
-            
-            // cout<<"Inside Slot Matrix State Critical Section Of Req ID "<<id<<endl;
-            // for (int i = 0; i < VERTICES; i++)
-            // {
-            //     for (int j = 0; j < VERTICES; j++)
-            //     {
-            //         for (int k = 0; k < SLOTS; k++)
-            //         {
-            //             slotMatrixStates[id][i][j].slots[k] = slotMatrix[i][j].slots[k];
-            //         }
-            //     }
-            // }
-            // cout<<"Coming Out Of Slot Matrix State Critical Section Of Req ID "<<id<<endl;
+        // cout<<"Inside Slot Matrix State Critical Section Of Req ID "<<id<<endl;
+        // for (int i = 0; i < VERTICES; i++)
+        // {
+        //     for (int j = 0; j < VERTICES; j++)
+        //     {
+        //         for (int k = 0; k < SLOTS; k++)
+        //         {
+        //             slotMatrixStates[id][i][j].slots[k] = slotMatrix[i][j].slots[k];
+        //         }
+        //     }
+        // }
+        // cout<<"Coming Out Of Slot Matrix State Critical Section Of Req ID "<<id<<endl;
 
-            // sem_post(matrix_semaphore);
-
+        // sem_post(matrix_semaphore);
 
         if (isSlotsAllocated == 1) // SLOTS successfully allocated for the request
         {
@@ -889,28 +921,30 @@ int main(int argc,char **argv)
             requestsInfo[id][NO_OF_DEST + 5] = burstTime;
             requestsInfo[id][NO_OF_DEST + 6] = id;
             requestsInfo[id][NO_OF_DEST + 7] = INT_MIN;
+            requestsInfo[id][NO_OF_DEST + 8] = lightTree.size();       //hop count primary
+            requestsInfo[id][NO_OF_DEST + 9] = lightTreeBackup.size(); //hop count backup
+
             sleep(burstTime);
             requestsInfo[id][NO_OF_DEST + 1] = 0;   // 0 means completed
             simulation_info[2] += noOfSlotsReq + 2; // simulation_info[2] : no of SLOTS allocated
-            
+
             //SLOTS DEALLOCATION
 
             // deallocation(slotMatrix,lightTree,beginIndexOriginal,noOfSlotsReq+2);
             // deallocation(slotMatrix,lightTreeBackup,beginIndexBackup,noOfSlotsReq+2);
 
-
             //===============LOCK WHILE A PROCESS IS DEALLOCATING MATRIX=================//
             sem_wait(matrix_semaphore);
-            
-            deallocationMainSlotMatrix(lightTree,beginIndexOriginal,noOfSlotsReq+2);
-            deallocationMainSlotMatrix(lightTreeBackup,beginIndexBackup,noOfSlotsReq+2);
-            reqSatisfied[id]=1;
+
+            deallocationMainSlotMatrix(lightTree, beginIndexOriginal, noOfSlotsReq + 2);
+            deallocationMainSlotMatrix(lightTreeBackup, beginIndexBackup, noOfSlotsReq + 2);
+            reqSatisfied[id] = 1;
             simulation_info[0]++; // simulation_info[0] : no of requests completed
-            cout<<"REQUEST "<<id<<" SATISFIED"<<"\n\n";
-            
+            cout << "REQUEST " << id << " SATISFIED"
+                 << "\n\n";
+
             sem_post(matrix_semaphore);
             //===============LOCK WHILE A PROCESS IS DEALLOCATING MATRIX=================//
-
 
             int k = rand() % 3;
             sleep(k); // after this request, process sleeps for a random amount of time before spawning another process/request
@@ -919,17 +953,20 @@ int main(int argc,char **argv)
         {
             //requestsInfo[id][4] = 2;            //2 means blocked
             requestsInfo[id][NO_OF_DEST + 1] = 2;
-            requestsInfo[id][NO_OF_DEST + 2] = INT_MIN; //begin slot orignal
-            requestsInfo[id][NO_OF_DEST + 3] = INT_MIN; //begin slot backup
-            requestsInfo[id][NO_OF_DEST + 4] = noOfSlotsReq; //requires slot
-            requestsInfo[id][NO_OF_DEST + 5] = burstTime; //burst time
-            requestsInfo[id][NO_OF_DEST + 6] = id; //id
-            requestsInfo[id][NO_OF_DEST + 7] = reasonOfBlocking; //reasonOfBlocking
-            reqSatisfied[id] =0;
+            requestsInfo[id][NO_OF_DEST + 2] = INT_MIN;                //begin slot orignal
+            requestsInfo[id][NO_OF_DEST + 3] = INT_MIN;                //begin slot backup
+            requestsInfo[id][NO_OF_DEST + 4] = noOfSlotsReq;           //requires slot
+            requestsInfo[id][NO_OF_DEST + 5] = burstTime;              //burst time
+            requestsInfo[id][NO_OF_DEST + 6] = id;                     //id
+            requestsInfo[id][NO_OF_DEST + 7] = reasonOfBlocking;       //reasonOfBlocking
+            requestsInfo[id][NO_OF_DEST + 8] = lightTree.size();       //hop count primary
+            requestsInfo[id][NO_OF_DEST + 9] = lightTreeBackup.size(); //hop count backup
+
+            reqSatisfied[id] = 0;
             simulation_info[3] += noOfSlotsReq; // simulation_info[3] : no of SLOTS blocked
             simulation_info[1]++;               // simulation_info[1] : no of requests blocked
             //requestsInfo[id][7] = id;
-            cout <<"REQUEST "<<id<<" BLOCKED\n\n";
+            cout << "REQUEST " << id << " BLOCKED\n\n";
             sleep(3); // WHY are we sleeping here after request is getting blocked???
         }
         /*     cout << id << " source: " << requestsInfo[id][0] << " dest: (" << requestsInfo[id][1] << "," << requestsInfo[id][2] << "," << requestsInfo[id][3] << ") status: "
@@ -942,27 +979,27 @@ int main(int argc,char **argv)
         number[1]++;
     }
 
-    // while (true)
-    // {
-    //     cout<<"ASdasdasd";
-    //     int status;
-    //     pid_t done = wait(&status);
-    //     if (done == -1)
-    //     {
-    //         if (errno == ECHILD){
-    //             break; // no more child processes
-    //         }
-    //     }
-    //     else
-    //     {
-    //         if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-    //         {
-    //             cerr << "pid " << done << " failed" << endl;
-    //             exit(1);
-    //         }
-    //     }
-    // }
-
+    while (true)
+    {
+        // cout<<"ASdasdasd";
+        int status;
+        pid_t done = wait(&status);
+        if (done == -1)
+        {
+            if (errno == ECHILD)
+            {
+                break; // no more child processes
+            }
+        }
+        else
+        {
+            if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+            {
+                // cerr << "pid " << done << " failed" << endl;
+                exit(1);
+            }
+        }
+    }
     // cout<<"PARENT TERMINATING"<<endl;
 
     return 0;
