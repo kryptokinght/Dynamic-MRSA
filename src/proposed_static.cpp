@@ -16,9 +16,9 @@ using namespace std;
 //VARIABLES
 #define T 4 //not used
 #define noOfRequests 10
-#define totalRequests 200
+#define totalRequests 2
 #define maxSlotsPerReq 4
-#define maxBtPerReq 20
+#define maxBtPerReq 3
 #define NO_OF_DEST 3
 #define SLOTS 1000
 #define VERTICES 14
@@ -1030,7 +1030,7 @@ int main(int argc, char **argv)
     cout << "Shared memory allocated successfully!" << endl;
     int noOfBlockedReq = 0, noOfFinishedReq = 0;
 
-    for (int i = 0; i < totalRequests; i++)
+    for (int i = 0; i <=totalRequests; i++)
     {
 
         // sem_wait(id_semaphore);
@@ -1056,7 +1056,7 @@ int main(int argc, char **argv)
 
         if (id == totalRequests) //on the last request, display BP and BBP
         {
-            sleep(15);
+            // sleep(15);
             cout << "id == totalReq waiting for all satisfied req to complete" << endl;
 
             int sleepFlag = 1;

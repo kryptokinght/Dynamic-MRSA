@@ -16,9 +16,9 @@ using namespace std;
 //VARIABLES
 #define T 4 //not used
 #define noOfRequests 10
-#define totalRequests 200
+#define totalRequests 2
 #define maxSlotsPerReq 4
-#define maxBtPerReq 20
+#define maxBtPerReq 2
 #define NO_OF_DEST 3
 #define SLOTS 1000
 #define VERTICES 14
@@ -655,15 +655,15 @@ int main(int argc,char **argv)
     cout << "Shared memory allocated successfully!" << endl;
     int noOfBlockedReq = 0, noOfFinishedReq = 0;
 
-    for (int i = 0; i < totalRequests; i++)
+    for (int i = 0; i <=totalRequests; i++)
     {
 
         
-        sem_wait(id_semaphore);
-        if(number[0]<=totalRequests)
-            fork();
-        else
-            break;
+        // sem_wait(id_semaphore);
+        // if(number[0]<=totalRequests)
+        //     fork();
+        // else
+        //     break;
         
         if(number[0]<totalRequests)
             cout<<endl<<"Entered ID Critical Section"<<endl;
@@ -680,13 +680,13 @@ int main(int argc,char **argv)
         
         if (id == totalRequests) //on the last request, display BP and BBP
         {
-            sleep(15);
+            // sleep(15);
             cout<<"id == totalReq waiting for all satisfied req to complete"<<endl;
             int sleepFlag = 1;
             while (sleepFlag == 1)
             {
                 sleep(3);
-                sem_wait(id_semaphore);
+                // sem_wait(id_semaphore);
                 if (number[1] >= totalRequests)
                     sleepFlag = 0;
                 //sem_post(id_semaphore);
@@ -750,7 +750,7 @@ int main(int argc,char **argv)
         if (id >= totalRequests) //when we have generated 600 requests, terminate calling process
         {
             cout<<"id is "<<id<<" last code "<<totalRequests<<endl;
-            sem_wait(id_semaphore);
+            // sem_wait(id_semaphore);
             int completed=number[1];
             //sem_post(id_semaphore);
             // int sleepFlag_2=1;
@@ -850,7 +850,7 @@ int main(int argc,char **argv)
 
         }
         else{
-            sem_wait(matrix_semaphore);
+            // sem_wait(matrix_semaphore);
 
             cout<<"Inside Allocation Critical Section Of Req ID "<<id<<endl;
             isSlotsAllocated = allocateSlots(lightTree, lightTreeBackup, noOfSlotsReq + 2, beginIndexOriginal, beginIndexBackup,id);
@@ -924,7 +924,7 @@ int main(int argc,char **argv)
 
 
             //===============LOCK WHILE A PROCESS IS DEALLOCATING MATRIX=================//
-            sem_wait(matrix_semaphore);
+            // sem_wait(matrix_semaphore);
             
             deallocationMainSlotMatrix(lightTree,beginIndexOriginal,noOfSlotsReq+2);
             deallocationMainSlotMatrix(lightTreeBackup,beginIndexBackup,noOfSlotsReq+2);
