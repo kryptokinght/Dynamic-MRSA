@@ -867,6 +867,7 @@ int findBestPolicy(set<pair<int, int>> lightTree, set<pair<int, int>> lightTreeB
     }
 
     //==============================================================================================//
+    return 3;
 }
 
 int allocateSlots(set<pair<int, int>> lightTree, set<pair<int, int>> lightTreeBackup, int requiredSlots, int &beginIndexOriginal, int &beginIndexBackup, int req_id)
@@ -1029,7 +1030,7 @@ int main(int argc, char **argv)
     cout << "Shared memory allocated successfully!" << endl;
     int noOfBlockedReq = 0, noOfFinishedReq = 0;
 
-    for (int i = 0; i < noOfRequests; i++)
+    for (int i = 0; i < totalRequests; i++)
     {
 
         // sem_wait(id_semaphore);
