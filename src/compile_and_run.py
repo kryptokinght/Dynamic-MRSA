@@ -28,7 +28,7 @@ def run_file(filename):
 
 
 def main():
-    files=['proposed','proposed_groomed','traditional','traditional_groomed','toggling','toggling_groomed']
+    files=['proposed','proposed_groomed', 'proposed_static','traditional','traditional_groomed','traditional_static','toggling','toggling_groomed','toggling_static']
     
     
     while(1):
@@ -48,10 +48,10 @@ def main():
 
         print('\n')
 
-        if(choice>=1 and choice<9):
+        if(choice>=1 and choice<=len(files)):
             run_file(files[choice-1])
         else:
-            break
+            print("Wrong choice entered .. must be between 1 and ",str(len(files)))
 
 if __name__ == "__main__":
     main()
