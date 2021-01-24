@@ -664,7 +664,7 @@ int main(int argc, char **argv)
     cout << "Shared memory allocated successfully!" << endl;
     int noOfBlockedReq = 0, noOfFinishedReq = 0;
 
-    for (int i = 0; i < noOfRequests; i++)
+    for (int i = 0; i < totalRequests; i++)
     {
 
         // sem_wait(id_semaphore);
